@@ -338,3 +338,13 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.6}
 .top .ib .spin{width:18px;height:18px}
 .banner+.tally,.banner+.focus{margin-top:14px}
 .main>.banner:first-child{margin-top:0}
+
+/* ===== Step 3 additions ===== */
+.ev-open span{display:block;text-align:center;line-height:1.4}
+.ev-open .ic{margin:0 auto 4px}
+.ev-badge{position:absolute;top:6px;left:6px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff}
+.ev-badge.ok{background:var(--ok)}.ev-badge.bad{background:var(--zero)}
+.old-ev{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.old-ev summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--muted)}
+.grades button{font-size:22px}
+.viewer img{max-height:70vh;object-fit:contain;background:var(--surface-2)}
