@@ -7,7 +7,7 @@
 
   var C = window.APP_CONFIG || {};
   var FOOT = 'พัฒนาโดย นายชิติพัทธ์ นิลวรรณ ตำแหน่ง ครู โรงเรียนบ้านละลม สพป.ศรีสะเกษ เขต 3';
-  var THEME_KEY = 'fix0_theme';
+  var THEME_KEY = 'followup_theme';
   var S = { user: null, settings: null, tab: 'home', sheet: null, server: null, serverErr: null, booting: true };
 
   var IC = {
