@@ -4,8 +4,8 @@
 (function () {
   'use strict';
 
-  var TOKEN_KEY = 'fix0_token';
-  var USER_KEY = 'fix0_user';
+  var TOKEN_KEY = 'followup_token';
+  var USER_KEY = 'followup_user';
   var TIMEOUT_MS = 30000;
 
   function getToken() {
