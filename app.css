@@ -331,3 +331,10 @@ textarea.inp{min-height:110px;resize:vertical;line-height:1.6}
 .soon b{color:var(--ink);font-size:16px}
 .boot{min-height:100vh;display:grid;place-items:center;color:var(--brand)}
 .hint{font-size:13px;color:var(--muted);margin:-6px 0 14px}
+
+/* ===== Step 2 additions ===== */
+.top.hero{padding-right:64px}
+.hero-ref{position:absolute;top:14px;right:14px;z-index:2}
+.top .ib .spin{width:18px;height:18px}
+.banner+.tally,.banner+.focus{margin-top:14px}
+.main>.banner:first-child{margin-top:0}
