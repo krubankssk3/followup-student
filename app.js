@@ -1,4 +1,4 @@
-/* app.js : Step 3 (เพิ่ม: แนบหลักฐาน ส่งตรวจ ครูให้ผล งานวัดผลอนุมัติ)
+/* app.js : Step 4 (เพิ่ม: จัดการผู้ใช้ นักเรียน รายวิชา ตั้งค่า นำเข้าจาก Excel)
  * - นักเรียน: หน้าหลัก รายวิชาที่ต้องแก้ รับทราบ ติ๊กสิ่งที่ทำแล้ว ข้อความถึงครู
  * - ครู: งานของฉัน รายชื่อนักเรียน บันทึก 0 ร มส เลื่อนกำหนด แจ้งเตือนนักเรียน
  * - งานวัดผล: ภาพรวม รายงานรายห้องและพิมพ์รายบุคคล
@@ -27,6 +27,7 @@
   var S = {
     user: null, settings: null, tab: 'home', stack: [], hist: 0, skipPop: false, sheet: null,
     cases: [], notifs: [], subjects: [], students: null, studentsAt: 0, logs: {}, ev: {}, uploading: {}, pendingCase: null,
+    adm: { users: null, students: null, subjects: null, settings: null }, aq: '', acls: 'all',
     filter: 'all', q: '', cls: null, loaded: false, syncing: false, lastSync: 0, loadErr: null
   };
 
@@ -602,7 +603,7 @@
     h += '<div class="row"><span class="nf-ic ok">' + ic('chat', 20) + '</span><span class="row-main"><span class="row-t">' + (u.role === 'student' ? 'LINE ผู้ปกครอง' : 'LINE ส่วนตัว') + '</span><span class="row-s">' + (u.lineLinked ? 'รับแจ้งเตือนผ่าน LINE OA โรงเรียน' : 'การเชื่อม LINE จะเปิดใช้ในขั้นถัดไป') + '</span></span>' + (u.lineLinked ? '<span class="chip ch-ok">เชื่อมแล้ว</span>' : '<span class="chip">ยังไม่เชื่อม</span>') + '</div>';
     h += '<button class="row" data-act="theme"><span class="nf-ic">' + ic('moon', 20) + '</span><span class="row-main"><span class="row-t">โหมดมืด</span><span class="row-s">ถนอมสายตาตอนกลางคืน</span></span><span class="sw' + (isDark() ? ' on' : '') + '" role="switch" aria-checked="' + isDark() + '"></span></button>';
     h += '<button class="row" data-act="howto"><span class="nf-ic">' + ic('phone', 20) + '</span><span class="row-main"><span class="row-t">เพิ่มไว้ที่หน้าจอโทรศัพท์</span><span class="row-s">เปิดได้เหมือนแอป ไม่ต้องพิมพ์ลิงก์</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
-    h += '</div><button class="btn btn-bad btn-block" data-act="logout" style="margin-top:20px">' + ic('logout', 20) + 'ออกจากระบบ</button>';
+    h += '</div>' + manageSection() + '<button class="btn btn-bad btn-block" data-act="logout" style="margin-top:20px">' + ic('logout', 20) + 'ออกจากระบบ</button>';
     h += '<p class="foot">' + FOOT + '<br>เวอร์ชัน ' + esc(C.VERSION || '') + (S.lastSync ? ' / ข้อมูลล่าสุด ' + thTime(S.lastSync) + ' น.' : '') + '</p></main>';
     return h;
   }
@@ -640,6 +641,9 @@
     if (!top) app.innerHTML = vTab();
     else if (top.v === 'case') app.innerHTML = vCase(caseById(top.id));
     else if (top.v === 'student') app.innerHTML = vStudent(top.sid);
+    else if (top.v === 'adm-users') app.innerHTML = vAdmUsers();
+    else if (top.v === 'adm-students') app.innerHTML = vAdmStudents();
+    else if (top.v === 'adm-subjects') app.innerHTML = vAdmSubjects();
     else app.innerHTML = vReport(top.sid);
   }
 
@@ -654,6 +658,9 @@
     else if (k === 'howto') inner = '<h3 class="sh-t">เพิ่มไว้ที่หน้าจอโทรศัพท์</h3><p class="sh-s">ทำครั้งเดียว ต่อไปแตะไอคอนเปิดได้เลย</p><b>Android (Chrome)</b><ol class="howto"><li>แตะเมนู ⋮ มุมขวาบน</li><li>เลือก เพิ่มลงในหน้าจอหลัก</li></ol><b>iPhone (Safari)</b><ol class="howto"><li>แตะปุ่มแชร์ด้านล่าง</li><li>เลือก เพิ่มไปยังหน้าจอโฮม</li></ol><button class="btn btn-primary btn-block" data-act="close-sheet" style="margin-top:10px">เข้าใจแล้ว</button>';
     else if (k === 'new') inner = shNew();
     else if (k === 'grade') inner = shGrade();
+    else if (k === 'form') inner = shForm();
+    else if (k === 'temp') inner = shTemp();
+    else if (k === 'import') inner = shImport();
     else if (k === 'reject') inner = shReject();
     else if (k === 'img') inner = shImg();
     else if (k === 'done') inner = '<div class="done-ic">' + ic(S.sheet.icon || 'check', 44) + '</div><h3 class="done-t">' + esc(S.sheet.title) + '</h3><p class="done-s">' + esc(S.sheet.sub) + '</p>' + (S.sheet.next ? '<ol class="next">' + S.sheet.next.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : '') +
@@ -833,6 +840,275 @@
     }).catch(function (e) { toast(e.message || 'โหลดรายชื่อนักเรียนไม่สำเร็จ'); });
   }
 
+  /* ---------- admin ---------- */
+  var PREFIX_STAFF = [['นาย', 'นาย'], ['นาง', 'นาง'], ['นางสาว', 'นางสาว']];
+  var PREFIX_STU = [['ด.ช.', 'ด.ช.'], ['ด.ญ.', 'ด.ญ.'], ['นาย', 'นาย'], ['นางสาว', 'นางสาว']];
+  var ROLE_OPTS = [['teacher', 'ครูผู้สอน'], ['measure', 'งานวัดผล'], ['admin', 'ผู้ดูแลระบบ']];
+  var SETTING_FIELDS = [
+    { k: 'academicYear', label: 'ปีการศึกษา', type: 'number' },
+    { k: 'semester', label: 'ภาคเรียน', type: 'chips', options: [['1', 'ภาคเรียนที่ 1'], ['2', 'ภาคเรียนที่ 2']] },
+    { k: 'maxAttempts', label: 'แก้ 0 และ มส ได้สูงสุด (ครั้ง)', type: 'number' },
+    { k: 'capZero', label: 'เกรดสูงสุดหลังแก้ 0', type: 'number' },
+    { k: 'capMs', label: 'เกรดสูงสุดหลังแก้ มส', type: 'number' },
+    { k: 'msMinPct', label: 'เวลาเรียนขั้นต่ำที่ยังแก้ มส ได้ (%)', type: 'number', hint: 'ต่ำกว่านี้ระบบบันทึกเป็นเรียนซ้ำ' },
+    { k: 'defaultDays', label: 'จำนวนวันที่ให้แก้ตั้งต้น', type: 'number' },
+    { k: 'remindDaysBefore', label: 'แจ้งเตือนก่อนครบกำหนด (วัน)', type: 'number' },
+    { k: 'maxUploadMB', label: 'ขนาดไฟล์หลักฐานสูงสุด (MB)', type: 'number' },
+    { k: 'schoolName', label: 'ชื่อโรงเรียน', type: 'text' },
+    { k: 'areaName', label: 'สังกัด', type: 'text' }
+  ];
+  function isAdmin() { return S.user.role === 'admin'; }
+  function isManager() { return S.user.role === 'admin' || S.user.role === 'measure'; }
+
+  function loadAdm(kind, force) {
+    if (S.adm[kind] && !force) return;
+    var action = { users: 'adminUsers', students: 'adminStudents', subjects: 'adminSubjects', settings: 'getSettings' }[kind];
+    API.call(action).then(function (d) {
+      if (kind === 'settings') { var m = {}; d.forEach(function (r) { m[r.key] = r.value; }); S.adm.settings = m; }
+      else S.adm[kind] = d;
+      render();
+      if (S.sheet && S.sheet.kind === 'form') {
+        if (kind === 'settings' && S.sheet.form === 'settings') { settingsForm(); return; }
+        if (kind === 'users' && S.sheet.form === 'subject') {
+          S.sheet.fields.forEach(function (f) {
+            if (f.k === 'teacherId') { f.options = teacherOptions(); f.hint = ''; }
+          });
+        }
+        renderSheet();
+      }
+    }).catch(function (e) { toast(e.message || 'โหลดข้อมูลไม่สำเร็จ'); });
+  }
+
+  function formField(f, val, ro) {
+    var k = f.k, hint = f.hint ? '<p class="hint" style="margin:6px 0 0">' + f.hint + '</p>' : '';
+    if (f.type === 'chips') {
+      return '<div class="field"><span class="lbl">' + f.label + '</span><div class="opts">' + f.options.map(function (o) {
+        return '<button class="fchip" data-act="form-chip" data-k="' + k + '" data-v="' + esc(o[0]) + '" aria-pressed="' + (String(val) === String(o[0])) + '"' + (ro || f.ro ? ' disabled' : '') + '>' + esc(o[1]) + '</button>';
+      }).join('') + '</div>' + hint + '</div>';
+    }
+    if (f.type === 'switch') {
+      return '<button class="toggle" data-act="form-sw" data-k="' + k + '" style="margin-bottom:14px"' + (ro ? ' disabled' : '') + '><span><b>' + f.label + '</b>' + (f.hint ? '<small>' + f.hint + '</small>' : '') + '</span><span class="sw' + (val ? ' on' : '') + '"></span></button>';
+    }
+    if (f.type === 'select') {
+      return '<label class="field"><span class="lbl">' + f.label + '</span><select class="inp" data-fk="' + k + '"' + (ro ? ' disabled' : '') + '><option value="">เลือก</option>' + f.options.map(function (o) {
+        return '<option value="' + esc(o[0]) + '"' + (String(val) === String(o[0]) ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+      }).join('') + '</select>' + hint + '</label>';
+    }
+    return '<label class="field"><span class="lbl">' + f.label + '</span><input class="inp" ' + (f.type === 'number' ? 'type="number" inputmode="decimal"' : 'type="text"') +
+      ' data-fk="' + k + '" value="' + esc(val === null || val === undefined ? '' : val) + '"' + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + (ro || f.ro ? ' readonly' : '') + '>' + hint + '</label>';
+  }
+  function shForm() {
+    var s = S.sheet;
+    return '<h3 class="sh-t">' + esc(s.title) + '</h3>' + (s.sub ? '<p class="sh-s">' + esc(s.sub) + '</p>' : '') +
+      s.fields.map(function (f) { return formField(f, s.values[f.k], s.readonly); }).join('') +
+      '<div id="formErr" class="err" role="alert"></div>' + (s.extra || '') +
+      (s.readonly ? '<button class="btn btn-ghost btn-block" data-act="close-sheet">ปิด</button>' : '<button class="btn btn-primary btn-block" data-act="form-save">' + esc(s.saveLabel || 'บันทึก') + '</button>');
+  }
+  function shTemp() {
+    var s = S.sheet;
+    return '<div class="done-ic">' + ic('lock', 40) + '</div><h3 class="done-t">' + esc(s.title) + '</h3><p class="done-s">' + esc(s.sub) + '</p>' +
+      '<div class="temp-pw" id="tempPw">' + esc(s.pw) + '</div><p class="sh-s" style="text-align:center">ระบบจะให้ตั้งรหัสใหม่ตอนเข้าใช้ครั้งแรก</p>' +
+      '<div class="actbar-in"><button class="btn btn-ghost" data-act="copy-temp">คัดลอก</button><button class="btn btn-primary" data-act="close-sheet">เสร็จแล้ว</button></div>';
+  }
+
+  function userForm(u) {
+    var teacherOpts = ROLE_OPTS;
+    openSheet({
+      kind: 'form', form: 'user', title: u ? 'แก้ไขบัญชี' : 'เพิ่มครูหรือเจ้าหน้าที่', sub: u ? u.username : 'ระบบสร้างรหัสผ่านชั่วคราวให้หลังบันทึก',
+      readonly: !isAdmin(),
+      values: u ? { id: u.id, username: u.username, role: u.role, prefix: u.prefix, firstName: u.firstName, lastName: u.lastName, department: u.department, advisorClass: u.advisorClass, active: u.active }
+        : { role: 'teacher', prefix: 'นาย', active: true },
+      fields: [
+        { k: 'username', label: 'ชื่อผู้ใช้ (ใช้เข้าสู่ระบบ)', ph: 'เช่น krubank', ro: !!u, hint: u ? '' : 'ตัวอักษรภาษาอังกฤษตัวเล็ก ตัวเลข . _ -' },
+        { k: 'role', label: 'บทบาท', type: 'chips', options: teacherOpts },
+        { k: 'prefix', label: 'คำนำหน้า', type: 'chips', options: PREFIX_STAFF },
+        { k: 'firstName', label: 'ชื่อ' }, { k: 'lastName', label: 'นามสกุล' },
+        { k: 'department', label: 'กลุ่มสาระ หรือฝ่าย', ph: 'เช่น กลุ่มสาระคณิตศาสตร์' },
+        { k: 'advisorClass', label: 'ครูที่ปรึกษาห้อง', ph: 'เช่น ม.2/1 เว้นว่างถ้าไม่ได้เป็นที่ปรึกษา' },
+        { k: 'active', label: 'เปิดใช้งาน', type: 'switch', hint: 'ปิดเมื่อครูย้ายหรือไม่ได้ใช้แล้ว' }
+      ],
+      extra: u && isAdmin() ? '<button class="btn btn-ghost btn-block" data-act="adm-reset" data-kind="user" data-id="' + esc(u.id) + '" style="margin-bottom:10px">' + ic('lock', 20) + 'รีเซ็ตรหัสผ่าน</button>' : ''
+    });
+  }
+  function studentForm(st) {
+    var canEdit = isManager();
+    openSheet({
+      kind: 'form', form: 'student', title: st ? st.name : 'เพิ่มนักเรียน', sub: st ? st.classroom + ' เลขที่ ' + st.number : 'รหัสผ่านเริ่มต้นคือเลขประจำตัว',
+      readonly: !canEdit,
+      values: st ? { isNew: false, studentId: st.id, prefix: st.prefix, firstName: st.firstName, lastName: st.lastName, classroom: st.classroom, number: st.number, parentName: st.parentName, parentPhone: st.parentPhone, active: st.active }
+        : { isNew: true, prefix: 'ด.ช.', active: true, classroom: S.acls !== 'all' ? S.acls : '' },
+      fields: [
+        { k: 'studentId', label: 'เลขประจำตัว', type: 'number', ro: !!st },
+        { k: 'prefix', label: 'คำนำหน้า', type: 'chips', options: PREFIX_STU },
+        { k: 'firstName', label: 'ชื่อ' }, { k: 'lastName', label: 'นามสกุล' },
+        { k: 'classroom', label: 'ห้อง', ph: 'เช่น ม.2/1' }, { k: 'number', label: 'เลขที่', type: 'number' },
+        { k: 'parentName', label: 'ชื่อผู้ปกครอง' }, { k: 'parentPhone', label: 'เบอร์โทรผู้ปกครอง' },
+        { k: 'active', label: 'กำลังศึกษาอยู่', type: 'switch', hint: 'ปิดเมื่อย้ายหรือจบการศึกษา' }
+      ],
+      extra: st ? '<button class="btn btn-ghost btn-block" data-act="adm-reset" data-kind="student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('lock', 20) + 'รีเซ็ตรหัสผ่านนักเรียน</button>' : ''
+    });
+  }
+  function teacherOptions() {
+    return (S.adm.users || []).filter(function (u) { return u.active && u.role !== 'admin'; }).map(function (u) { return [u.id, u.name]; });
+  }
+  function subjectForm(sj) {
+    var users = teacherOptions();
+    openSheet({
+      kind: 'form', form: 'subject', title: sj ? sj.code + ' ' + sj.name : 'เพิ่มรายวิชา', sub: term(),
+      values: sj ? { isNew: false, code: sj.code, name: sj.name, level: String(sj.level), type: sj.type, credit: sj.credit, teacherId: sj.teacherId, active: sj.active }
+        : { isNew: true, level: '1', type: 'พื้นฐาน', active: true },
+      fields: [
+        { k: 'code', label: 'รหัสวิชา', ph: 'เช่น ค21101', ro: !!sj }, { k: 'name', label: 'ชื่อวิชา', ph: 'เช่น คณิตศาสตร์ 1' },
+        { k: 'level', label: 'ระดับชั้น', type: 'chips', options: [['1', 'ม.1'], ['2', 'ม.2'], ['3', 'ม.3']] },
+        { k: 'type', label: 'ประเภท', type: 'chips', options: [['พื้นฐาน', 'พื้นฐาน'], ['เพิ่มเติม', 'เพิ่มเติม']] },
+        { k: 'credit', label: 'หน่วยกิต', type: 'number' },
+        { k: 'teacherId', label: 'ครูผู้สอน', type: 'select', options: users, hint: users.length ? '' : 'กำลังโหลดรายชื่อครู' },
+        { k: 'active', label: 'เปิดใช้งาน', type: 'switch' }
+      ]
+    });
+    loadAdm('users');
+  }
+  function settingsForm() {
+    var v = S.adm.settings;
+    if (!v) { openSheet({ kind: 'form', form: 'settings', title: 'ตั้งค่าระบบ', sub: 'กำลังโหลด', values: {}, fields: [], readonly: true }); loadAdm('settings'); return; }
+    var vals = {};
+    SETTING_FIELDS.forEach(function (f) { vals[f.k] = v[f.k] === undefined ? '' : String(v[f.k]); });
+    openSheet({ kind: 'form', form: 'settings', title: 'ตั้งค่าระบบ', sub: isAdmin() ? 'มีผลกับทุกคนทันทีหลังบันทึก' : 'ดูได้อย่างเดียว แก้ไขได้เฉพาะผู้ดูแลระบบ', readonly: !isAdmin(), values: vals, fields: SETTING_FIELDS });
+  }
+
+  function saveForm(btn) {
+    var s = S.sheet, v = s.values, err = $('formErr');
+    var fail = function (m) { if (err) err.textContent = m; };
+    var action, payload;
+    if (s.form === 'user') { action = 'adminSaveUser'; payload = { item: v }; }
+    else if (s.form === 'student') {
+      if (!v.studentId) return fail('กรอกเลขประจำตัว');
+      action = 'adminSaveStudent'; payload = { item: v };
+    } else if (s.form === 'subject') {
+      if (!v.teacherId) return fail('เลือกครูผู้สอน');
+      action = 'adminSaveSubject'; payload = { item: v };
+    } else {
+      var changes = {}, cur = S.adm.settings || {};
+      SETTING_FIELDS.forEach(function (f) { if (String(cur[f.k]) !== String(v[f.k])) changes[f.k] = v[f.k]; });
+      if (!Object.keys(changes).length) { closeSheet(); return; }
+      action = 'saveSettings'; payload = { changes: changes };
+    }
+    setBusy(btn, true, 'กำลังบันทึก');
+    API.call(action, payload).then(function (d) {
+      haptic();
+      if (s.form === 'settings') { S.adm.settings = null; closeSheet(); toast('บันทึกการตั้งค่าแล้ว'); refresh(true); return; }
+      var kind = { user: 'users', student: 'students', subject: 'subjects' }[s.form];
+      S.adm[kind] = null; loadAdm(kind, true);
+      if (s.form === 'subject') S.lastSync = 0;
+      if (d && d.tempPassword) {
+        openSheet({ kind: 'temp', title: 'บันทึกแล้ว', sub: 'แจ้งข้อมูลนี้ให้เจ้าของบัญชี ชื่อผู้ใช้ ' + (s.form === 'user' ? d.user.username : d.student.id), pw: d.tempPassword });
+      } else { closeSheet(); toast('บันทึกแล้ว'); }
+    }).catch(function (e) { setBusy(btn, false); fail(e.message || 'บันทึกไม่สำเร็จ'); });
+  }
+
+  /* import */
+  function parseImport(txt) {
+    var rows = [], bad = [];
+    String(txt || '').split(/\r?\n/).forEach(function (line, i) {
+      if (!line.trim()) return;
+      var c = line.indexOf('\t') >= 0 ? line.split('\t') : line.split(',');
+      c = c.map(function (x) { return x.trim(); });
+      if (!/^\d+$/.test(c[0])) { if (i > 0 || rows.length) bad.push(i + 1); return; }
+      rows.push({ studentId: c[0], prefix: c[1] || '', firstName: c[2] || '', lastName: c[3] || '', classroom: c[4] || '', number: c[5] || '', parentName: c[6] || '', parentPhone: c[7] || '' });
+    });
+    return { rows: rows, bad: bad };
+  }
+  function importPreview() {
+    var p = parseImport(S.sheet.txt);
+    if (!p.rows.length) return '<div class="hint" style="margin:8px 0 14px">ยังไม่มีข้อมูล</div>';
+    var noCls = p.rows.filter(function (r) { return !r.classroom || !r.firstName; }).length;
+    return '<div class="group" style="margin:8px 0 14px"><dl class="kv"><dt>พร้อมนำเข้า</dt><dd>' + p.rows.length + ' คน</dd>' +
+      '<dt>ตัวอย่างแถวแรก</dt><dd>' + esc(p.rows[0].prefix + p.rows[0].firstName + ' ' + p.rows[0].lastName + ' ' + p.rows[0].classroom) + '</dd>' +
+      (noCls ? '<dt class="t-bad">ขาดชื่อหรือห้อง</dt><dd class="t-bad">' + noCls + ' แถว</dd>' : '') +
+      (p.bad.length ? '<dt class="t-bad">ข้ามแถวที่เลขประจำตัวไม่ถูกต้อง</dt><dd class="t-bad">แถว ' + p.bad.slice(0, 5).join(', ') + '</dd>' : '') + '</dl></div>';
+  }
+  function shImport() {
+    return '<h3 class="sh-t">นำเข้านักเรียนจาก Excel</h3><p class="sh-s">คัดลอกจาก Excel หรือ Google Sheets แล้ววางในช่องด้านล่าง เรียงคอลัมน์ตามนี้</p>' +
+      '<div class="cols-hint">เลขประจำตัว | คำนำหน้า | ชื่อ | นามสกุล | ห้อง | เลขที่ | ชื่อผู้ปกครอง | เบอร์โทร</div>' +
+      '<textarea class="inp" id="importTxt" style="min-height:160px;font-size:14px" placeholder="12345	ด.ช.	ภูมิ	ใจกล้า	ม.2/1	7	นางสมพร ใจกล้า	0812345678">' + esc(S.sheet.txt || '') + '</textarea>' +
+      '<div id="importPrev">' + importPreview() + '</div><p class="hint">คนที่มีเลขประจำตัวอยู่แล้วจะอัปเดตข้อมูล ไม่เปลี่ยนรหัสผ่าน คนใหม่ใช้เลขประจำตัวเป็นรหัสผ่านเริ่มต้น</p>' +
+      '<div id="formErr" class="err" role="alert"></div><button class="btn btn-primary btn-block" data-act="import-run">นำเข้า</button>';
+  }
+
+  /* views */
+  function vAdmUsers() {
+    var list = S.adm.users;
+    var h = header('ครูและเจ้าหน้าที่', list ? list.length + ' บัญชี' : '', '', true) + '<main class="main">';
+    if (!list) return h + loadingHtml() + '</main>';
+    h += '<div class="group">' + (list.length ? list.map(function (u) {
+      return '<button class="row" data-act="adm-user-edit" data-id="' + esc(u.id) + '">' + avatarHtml(u.id, u.firstName) + '<span class="row-main"><span class="row-t">' + esc(u.name) + '</span>' +
+        '<span class="row-s">' + esc(u.username) + (u.advisorClass ? ' ที่ปรึกษา ' + esc(u.advisorClass) : '') + '</span><span class="row-s"><span class="chip ch-info">' + roleName(u.role) + '</span>' +
+        (u.active ? '' : '<span class="chip ch-bad">ปิดใช้งาน</span>') + (u.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '') + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
+    }).join('') : '<div class="empty">ยังไม่มีบัญชี</div>') + '</div></main>';
+    if (isAdmin()) h += '<button class="fab no-print" data-act="adm-user-new">' + ic('plus') + 'เพิ่มครู</button>';
+    return h;
+  }
+  function admStudentRows() {
+    var list = S.adm.students || [], q = S.aq.trim().toLowerCase();
+    var f = list.filter(function (s) {
+      if (S.acls !== 'all' && s.classroom !== S.acls) return false;
+      return !q || (s.name + ' ' + s.id + ' ' + s.classroom).toLowerCase().indexOf(q) >= 0;
+    });
+    if (!f.length) return '<div class="group"><div class="empty">' + (list.length ? 'ไม่พบนักเรียนตามเงื่อนไขนี้' : 'ยังไม่มีรายชื่อนักเรียน กดนำเข้าจาก Excel เพื่อเริ่ม') + '</div></div>';
+    return '<div class="group">' + f.slice(0, 300).map(function (s) {
+      return '<button class="row" data-act="adm-stu-edit" data-id="' + esc(s.id) + '">' + avatarHtml(s.id, s.firstName) + '<span class="row-main"><span class="row-t">' + esc(s.name) + '</span>' +
+        '<span class="row-s">' + esc(s.classroom) + ' เลขที่ ' + esc(s.number) + ' เลขประจำตัว ' + esc(s.id) + '</span><span class="row-s">' +
+        (s.active ? '' : '<span class="chip ch-bad">ไม่ได้ศึกษาแล้ว</span>') + (s.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '<span class="chip ch-ok">ตั้งรหัสแล้ว</span>') +
+        (s.lineLinked ? '<span class="chip ch-ok">LINE</span>' : '') + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
+    }).join('') + '</div>' + (f.length > 300 ? '<p class="hint" style="margin-top:8px">แสดง 300 คนแรก ค้นหาเพื่อดูคนอื่น</p>' : '');
+  }
+  function vAdmStudents() {
+    var list = S.adm.students, classes = [];
+    (list || []).forEach(function (s) { if (classes.indexOf(s.classroom) < 0) classes.push(s.classroom); });
+    classes.sort();
+    var title = S.user.role === 'teacher' ? 'นักเรียนห้อง ' + esc(S.user.advisorClass) : 'นักเรียน';
+    var h = '<header class="top col"><div style="display:flex;align-items:center;gap:10px"><button class="ib" data-act="back" aria-label="ย้อนกลับ">' + ic('back') + '</button><div class="top-h" style="flex:1">' + title + '</div>' +
+      (list ? '<span class="top-s">' + list.length + ' คน</span>' : '') + '</div><label class="search">' + ic('search', 20) + '<input id="aq" type="search" placeholder="ค้นหาชื่อ เลขประจำตัว หรือห้อง" value="' + esc(S.aq) + '"></label></header>';
+    h += '<main class="main" style="padding-top:4px">';
+    if (!list) return h + loadingHtml() + '</main>';
+    if (classes.length > 1) h += '<div class="chips">' + [['all', 'ทุกห้อง']].concat(classes.map(function (c) { return [c, c]; })).map(function (x) {
+      return '<button class="fchip" data-act="acls" data-v="' + esc(x[0]) + '" aria-pressed="' + (S.acls === x[0]) + '">' + esc(x[1]) + '</button>';
+    }).join('') + '</div>';
+    if (isManager()) h += '<div class="ev-add" style="margin-top:12px"><button class="btn btn-ghost" data-act="adm-stu-new">' + ic('plus', 20) + 'เพิ่มทีละคน</button><button class="btn btn-ghost" data-act="adm-import">' + ic('file', 20) + 'นำเข้าจาก Excel</button></div>';
+    else h += '<p class="hint" style="margin:12px 2px 0">แตะชื่อนักเรียนเพื่อรีเซ็ตรหัสผ่านเมื่อนักเรียนลืม</p>';
+    return h + '<div id="alist" style="margin-top:14px">' + admStudentRows() + '</div></main>';
+  }
+  function vAdmSubjects() {
+    var list = S.adm.subjects;
+    var h = header('รายวิชา', term(), '', true) + '<main class="main">';
+    if (!list) return h + loadingHtml() + '</main>';
+    [1, 2, 3, 4, 5, 6].forEach(function (lv) {
+      var a = list.filter(function (s) { return s.level === lv; });
+      if (!a.length) return;
+      h += '<div class="sec"><h2>ม.' + lv + '</h2><span class="t-muted" style="font-size:14px">' + a.length + ' วิชา</span></div><div class="group">' + a.map(function (s) {
+        return '<button class="row" data-act="adm-subj-edit" data-id="' + esc(s.code) + '"><span class="avatar" style="font-size:12px">' + esc(s.code.charAt(0)) + '</span><span class="row-main"><span class="row-t">' + esc(s.code) + ' ' + esc(s.name) + '</span>' +
+          '<span class="row-s">' + esc(s.teacherName || 'ยังไม่ระบุครู') + ' ' + esc(s.type) + (s.credit !== '' ? ' ' + esc(s.credit) + ' หน่วยกิต' : '') + '</span>' + (s.active ? '' : '<span class="row-s"><span class="chip ch-bad">ปิดใช้งาน</span></span>') + '</span><span class="chev">' + ic('chev', 20) + '</span></button>';
+      }).join('') + '</div>';
+    });
+    if (!list.length) h += '<div class="group"><div class="empty">ยังไม่มีรายวิชา กดเพิ่มรายวิชาด้านล่าง</div></div>';
+    return h + '</main><button class="fab no-print" data-act="adm-subj-new">' + ic('plus') + 'เพิ่มรายวิชา</button>';
+  }
+  function manageSection() {
+    var u = S.user, rows = [];
+    if (isManager()) {
+      rows.push(['users', 'users', 'ครูและเจ้าหน้าที่', isAdmin() ? 'เพิ่มครู กำหนดบทบาท รีเซ็ตรหัส' : 'ดูรายชื่อครู']);
+      rows.push(['students', 'user', 'นักเรียน', 'นำเข้าจาก Excel แก้ไขข้อมูล รีเซ็ตรหัส']);
+      rows.push(['subjects', 'file', 'รายวิชา', 'รหัสวิชาและครูผู้สอน']);
+      rows.push(['settings', 'lock', 'ตั้งค่าระบบ', isAdmin() ? 'ปีการศึกษา เกณฑ์การแก้ การแจ้งเตือน' : 'ดูเกณฑ์ที่ใช้อยู่']);
+    } else if (u.role === 'teacher' && u.advisorClass) {
+      rows.push(['students', 'user', 'นักเรียนห้อง ' + u.advisorClass, 'รีเซ็ตรหัสเมื่อนักเรียนลืม']);
+    }
+    if (!rows.length) return '';
+    return '<div class="sec"><h2>จัดการระบบ</h2></div><div class="group">' + rows.map(function (r) {
+      return '<button class="row" data-act="adm-open" data-v="' + r[0] + '"><span class="nf-ic">' + ic(r[1], 20) + '</span><span class="row-main"><span class="row-t">' + esc(r[2]) + '</span><span class="row-s">' + esc(r[3]) + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
+    }).join('') + '</div>';
+  }
+
   /* ---------- server ---------- */
   function refresh(silent) {
     if (!S.user || S.syncing) return;
@@ -944,6 +1220,7 @@
     if (API.getToken()) API.call('logout').catch(function () {});
     API.clear(); clearCache(); resetNav();
     S.user = null; S.cases = []; S.notifs = []; S.subjects = []; S.students = null; S.logs = {}; S.ev = {}; S.loaded = false; S.tab = 'home';
+    S.adm = { users: null, students: null, subjects: null, settings: null };
     closeSheet(); render();
   }
 
@@ -1059,6 +1336,49 @@
       case 'new-type': s.type = v; if (!s.tasksEdited) s.tasks = TASKS[v].join('\n'); renderSheet(); break;
       case 'new-save': saveNewCase(el); break;
 
+      case 'adm-open':
+        if (v === 'settings') { settingsForm(); break; }
+        S.aq = ''; S.acls = 'all';
+        push({ v: 'adm-' + v }); loadAdm(v, true);
+        if (v === 'subjects') loadAdm('users');
+        break;
+      case 'adm-user-new': userForm(null); break;
+      case 'adm-user-edit': userForm((S.adm.users || []).filter(function (x) { return x.id === id; })[0]); break;
+      case 'adm-stu-new': studentForm(null); break;
+      case 'adm-stu-edit': studentForm((S.adm.students || []).filter(function (x) { return x.id === id; })[0]); break;
+      case 'adm-subj-new': subjectForm(null); break;
+      case 'adm-subj-edit': subjectForm((S.adm.subjects || []).filter(function (x) { return x.code === id; })[0]); break;
+      case 'adm-import': openSheet({ kind: 'import', txt: '' }); break;
+      case 'acls': S.acls = v; render(); break;
+      case 'form-chip': s.values[el.getAttribute('data-k')] = v; renderSheet(); break;
+      case 'form-sw': var fk = el.getAttribute('data-k'); s.values[fk] = !s.values[fk]; renderSheet(); break;
+      case 'form-save': saveForm(el); break;
+      case 'adm-reset':
+        var kind = el.getAttribute('data-kind');
+        setBusy(el, true, 'กำลังรีเซ็ต');
+        API.call('adminResetPassword', { kind: kind, id: id }).then(function (d) {
+          haptic();
+          var lst = S.adm[kind === 'user' ? 'users' : 'students'];
+          if (lst) lst.forEach(function (x) { if (x.id === id) x.mustChangePw = true; });
+          render();
+          openSheet({ kind: 'temp', title: 'รีเซ็ตรหัสผ่านแล้ว', sub: 'แจ้งรหัสนี้ให้เจ้าของบัญชี ชื่อผู้ใช้ ' + d.username, pw: d.tempPassword });
+        }).catch(function (err) { setBusy(el, false); toast(err.message || 'รีเซ็ตไม่สำเร็จ'); });
+        break;
+      case 'copy-temp':
+        try {
+          navigator.clipboard.writeText(S.sheet.pw).then(function () { toast('คัดลอกแล้ว'); }, function () { toast('คัดลอกไม่ได้ จดรหัสไว้แทน'); });
+        } catch (err) { toast('คัดลอกไม่ได้ จดรหัสไว้แทน'); }
+        break;
+      case 'import-run':
+        var parsed = parseImport(s.txt), ie = $('formErr');
+        if (!parsed.rows.length) { if (ie) ie.textContent = 'วางข้อมูลจาก Excel ก่อน'; return; }
+        setBusy(el, true, 'กำลังนำเข้า ' + parsed.rows.length + ' คน');
+        API.call('adminImportStudents', { rows: parsed.rows }).then(function (d) {
+          haptic(); S.adm.students = null; loadAdm('students', true); S.students = null;
+          openSheet({ kind: 'done', icon: 'check', title: 'นำเข้าแล้ว', sub: 'เพิ่มใหม่ ' + d.created + ' คน อัปเดต ' + d.updated + ' คน', next: d.created ? ['นักเรียนใหม่ใช้เลขประจำตัวเป็นรหัสผ่านครั้งแรก', 'ระบบจะให้ตั้งรหัสใหม่ตอนเข้าใช้ครั้งแรก'] : null });
+        }).catch(function (err) { setBusy(el, false); if (ie) ie.textContent = err.message || 'นำเข้าไม่สำเร็จ'; });
+        break;
+
       case 'add-cam': case 'add-pick':
         S.pendingCase = id;
         var fi = $(a === 'add-cam' ? 'fCam' : 'fPick');
@@ -1125,6 +1445,10 @@
     var t = e.target;
     if (t.id === 'q') { S.q = t.value; var sl = $('slist'); if (sl) sl.innerHTML = studentListHtml(); return; }
     if (t.id === 'sq' && S.sheet) { S.sheet.sq = t.value; $('sres').innerHTML = stuResults(t.value); return; }
+    if (t.id === 'aq') { S.aq = t.value; var al = $('alist'); if (al) al.innerHTML = admStudentRows(); return; }
+    if (t.id === 'importTxt' && S.sheet) { S.sheet.txt = t.value; var ip = $('importPrev'); if (ip) ip.innerHTML = importPreview(); return; }
+    var fk2 = t.getAttribute('data-fk');
+    if (fk2 && S.sheet && S.sheet.values) { S.sheet.values[fk2] = t.value; return; }
     var k = t.getAttribute('data-k');
     if (k && S.sheet) {
       S.sheet[k] = t.value;
