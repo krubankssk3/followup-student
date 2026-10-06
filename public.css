@@ -1,0 +1,32 @@
+/* public.css : หน้าสถิติสาธารณะ */
+.pub{max-width:1080px;margin:0 auto;padding:0 16px 40px}
+.pub-hero{position:relative;overflow:hidden;margin:0 -16px;padding:28px 20px 70px;background:var(--grad);color:#fff;border-radius:0 0 34px 34px;text-align:center}
+.pub-hero::before,.pub-hero::after{content:"";position:absolute;border-radius:50%;border:2px dashed rgba(255,255,255,.18)}
+.pub-hero::before{width:260px;height:260px;right:-80px;top:-90px}
+.pub-hero::after{width:180px;height:180px;left:-60px;bottom:-60px}
+.pub-hero .emblem{width:84px;height:84px;margin:0 auto 10px;position:relative;z-index:1}
+.pub-hero h1{position:relative;z-index:1;margin:0;font-size:24px;line-height:1.35}
+.pub-hero p{position:relative;z-index:1;margin:4px 0 0;opacity:.9}
+.pub-top{position:absolute;top:14px;right:14px;z-index:2;display:flex;gap:8px}
+.pub-top a,.pub-top button{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;text-decoration:none;font:inherit;font-size:14px;font-weight:600;border:0;cursor:pointer}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:-46px;position:relative;z-index:2}
+@media (min-width:760px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--surface);border-radius:20px;padding:16px;box-shadow:var(--shadow-md)}
+.kpi .n{font-size:30px;font-weight:700;line-height:1.15}
+.kpi .l{font-size:13.5px;color:var(--muted)}
+.kpi .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;margin-bottom:8px;padding:8px}
+.kpi.c1 .ic{background:var(--brand-soft);color:var(--brand)}
+.kpi.c2 .ic{background:var(--ok-soft);color:var(--ok)}
+.kpi.c3 .ic{background:var(--ror-soft);color:var(--ror)}
+.kpi.c4 .ic{background:var(--zero-soft);color:var(--zero)}
+.charts{display:grid;grid-template-columns:1fr;gap:14px;margin-top:16px}
+@media (min-width:760px){.charts{grid-template-columns:1fr 1fr}.charts .wide{grid-column:1/-1}}
+.chart-card{background:var(--surface);border-radius:22px;padding:18px;box-shadow:var(--shadow-sm)}
+.chart-card h3{margin:0 0 2px;font-size:16px;display:flex;align-items:center;gap:8px}
+.chart-card h3::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--grad)}
+.chart-card .sub{font-size:13px;color:var(--muted);margin-bottom:10px}
+.cbox{position:relative;height:260px}
+.cbox.tall{height:300px}
+.rate{display:flex;align-items:center;gap:16px}
+.pub-note{text-align:center;font-size:13px;color:var(--muted);margin-top:18px;line-height:1.6}
+.pub-empty{background:var(--surface);border-radius:22px;padding:40px 20px;text-align:center;color:var(--muted);margin-top:16px;box-shadow:var(--shadow-sm)}
