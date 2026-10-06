@@ -4,5 +4,5 @@ window.APP_CONFIG = {
   APP_NAME: 'ติดตามการแก้ 0 ร มส',
   SCHOOL: 'โรงเรียนบ้านละลม',
   LOGO_URL: 'logo.png',
-  VERSION: '0.6.0'
+  VERSION: '0.7.0'
 };
