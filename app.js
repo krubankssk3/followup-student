@@ -1,4 +1,4 @@
-/* app.js : Step 4 (เพิ่ม: จัดการผู้ใช้ นักเรียน รายวิชา ตั้งค่า นำเข้าจาก Excel)
+/* app.js : Step 6 (ปรับความเร็ว: ตอบสนองทันที ลดจำนวนครั้งที่เรียกเซิร์ฟเวอร์)
  * - นักเรียน: หน้าหลัก รายวิชาที่ต้องแก้ รับทราบ ติ๊กสิ่งที่ทำแล้ว ข้อความถึงครู
  * - ครู: งานของฉัน รายชื่อนักเรียน บันทึก 0 ร มส เลื่อนกำหนด แจ้งเตือนนักเรียน
  * - งานวัดผล: ภาพรวม รายงานรายห้องและพิมพ์รายบุคคล
@@ -733,7 +733,7 @@
       var url = URL.createObjectURL(f), img = new Image();
       img.onload = function () {
         try {
-          var big = scaleImg(img, 1600, 0.82), thumb = scaleImg(img, 240, 0.7);
+          var big = scaleImg(img, 1280, 0.78), thumb = scaleImg(img, 200, 0.65);
           URL.revokeObjectURL(url);
           resolve({ mime: 'image/jpeg', data: big.split(',')[1], thumb: thumb });
         } catch (e) { reject({ message: 'ย่อรูปไม่สำเร็จ ลองเลือกรูปอื่น' }); }
@@ -1139,21 +1139,46 @@
       if (top && top.v === 'case' && top.id === id) render();
     }).catch(function () { S.logs[id] = []; });
   }
+  function viewingCase() { var top = S.stack[S.stack.length - 1]; return top && top.v === 'case' ? top.id : null; }
+  function applyDetail(d) {
+    if (d && d.item) {
+      upsertCase(d.item);
+      if (d.log) { S.logs[d.item.id] = d.log; S.ev[d.item.id] = d.evidence || []; } else delete S.logs[d.item.id];
+    }
+    if (d && d.items) d.items.forEach(function (it) { upsertCase(it); delete S.logs[it.id]; });
+  }
   function mutate(action, payload, btn, busyText, onOk) {
     setBusy(btn, true, busyText);
+    if (payload && payload.id && viewingCase() === payload.id) payload.detail = true;
     return API.call(action, payload).then(function (d) {
-      if (d && d.item) { upsertCase(d.item); delete S.logs[d.item.id]; }
-      if (d && d.items) d.items.forEach(function (it) { upsertCase(it); delete S.logs[it.id]; });
+      applyDetail(d);
       saveCache(); haptic();
       if (onOk) onOk(d);
       render();
-      var top = S.stack[S.stack.length - 1];
-      if (d && d.item && top && top.v === 'case' && top.id === d.item.id) loadLog(d.item.id);
+      var vc = viewingCase();
+      if (vc && !S.logs[vc]) loadLog(vc);
     }).catch(function (e) {
       setBusy(btn, false);
       toast(e.message || 'ทำรายการไม่สำเร็จ');
     });
   }
+
+  /** ทำให้หน้าจอเปลี่ยนทันที แล้วค่อยบันทึกเบื้องหลัง ถ้าไม่สำเร็จจะย้อนกลับ */
+  function optimistic(action, payload, apply, undo, okMsg) {
+    var snap = apply();
+    haptic(); render(); if (okMsg) toast(okMsg);
+    if (payload && payload.id && viewingCase() === payload.id) payload.detail = true;
+    return API.call(action, payload).then(function (d) {
+      applyDetail(d); saveCache(); render();
+      return d;
+    }).catch(function (e) {
+      undo(snap); render();
+      toast(e.message || 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
+      throw e;
+    });
+  }
+  function snapCase(id) { var c = caseById(id); return c ? JSON.parse(JSON.stringify(c)) : null; }
+  function restoreCase(snap) { if (snap) upsertCase(snap); }
 
   /* ---------- navigation ---------- */
   function push(v) {
@@ -1161,7 +1186,7 @@
     try { history.pushState({ d: S.stack.length }, ''); S.hist++; } catch (e) {}
     window.scrollTo(0, 0);
     render();
-    if (v.v === 'case' && !S.logs[v.id]) loadLog(v.id);
+    if (v.v === 'case' && !S.logs[v.id] && !v.noload) loadLog(v.id);
   }
   function goBack() {
     if (S.hist > 0) { try { history.back(); return; } catch (e) {} }
@@ -1222,6 +1247,7 @@
     S.user = null; S.cases = []; S.notifs = []; S.subjects = []; S.students = null; S.logs = {}; S.ev = {}; S.loaded = false; S.tab = 'home';
     S.adm = { users: null, students: null, subjects: null, settings: null };
     closeSheet(); render();
+    API.call('ping').catch(function () {});
   }
 
   function saveNewCase(btn) {
@@ -1284,11 +1310,9 @@
         break;
 
       case 'ack':
-        mutate('ackCase', { id: id }, el, 'กำลังบันทึก', function () {
-          toast('รับทราบแล้ว ทำตามรายการได้เลย');
-          var top = S.stack[S.stack.length - 1];
-          if (!top || top.v !== 'case') setTimeout(function () { push({ v: 'case', id: id }); }, 0);
-        });
+        if (!c) return;
+        if (viewingCase() !== id) push({ v: 'case', id: id, noload: true });
+        optimistic('ackCase', { id: id }, function () { var sn = snapCase(id); c.status = 'DOING'; return sn; }, restoreCase, 'รับทราบแล้ว ทำตามรายการได้เลย').catch(function () {});
         break;
       case 'task':
         if (!c || (c.status !== 'DOING' && c.status !== 'OPEN')) return;
@@ -1304,15 +1328,17 @@
           render(); toast(err.message || 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
         });
         break;
-      case 'extend': mutate('extendCase', { id: id, days: 7 }, el, 'กำลังเลื่อน', function (d) { toast('เลื่อนกำหนดเป็น ' + thDate(d.item.due)); }); break;
+      case 'extend':
+        if (!c) return;
+        optimistic('extendCase', { id: id, days: 7 }, function () { var sn = snapCase(id); c.due = Math.max(c.due || 0, now()) + 7 * DAY; return sn; }, restoreCase,
+          'เลื่อนกำหนดเป็น ' + thDate(Math.max(c.due || 0, now()) + 7 * DAY)).catch(function () {});
+        break;
       case 'remind':
-        setBusy(el, true, 'กำลังส่ง');
+        haptic(); toast('ส่งแจ้งเตือนถึงนักเรียนแล้ว');
+        el.disabled = true;
         API.call('remindCase', { id: id }).then(function () {
-          haptic(); setBusy(el, false); toast('ส่งแจ้งเตือนถึงนักเรียนแล้ว');
-          delete S.logs[id];
-          var top = S.stack[S.stack.length - 1];
-          if (top && top.v === 'case' && top.id === id) loadLog(id);
-        }).catch(function (err) { setBusy(el, false); toast(err.message || 'ส่งไม่สำเร็จ'); });
+          if (viewingCase() === id) loadLog(id); else delete S.logs[id];
+        }).catch(function (err) { el.disabled = false; toast(err.message || 'ส่งแจ้งเตือนไม่สำเร็จ'); });
         break;
 
       case 'open-notif':
@@ -1429,14 +1455,18 @@
         mutate('returnCase', { id: id, note: s.note.trim() }, el, 'กำลังส่ง', function () { closeSheet(); toast('ส่งกลับให้นักเรียนแก้แล้ว'); });
         break;
       case 'approve':
-        mutate('approveCases', { ids: [id] }, el, 'กำลังอนุมัติ', function () { toast('อนุมัติแล้ว'); });
+        if (!c) return;
+        optimistic('approveCases', { ids: [id] }, function () { var sn = snapCase(id); c.status = 'APPROVED'; c.upd = now(); return sn; }, restoreCase, 'อนุมัติแล้ว').catch(function () {});
         break;
       case 'approve-all':
         var ids = S.cases.filter(function (x) { return x.status === 'PASSED'; }).map(function (x) { return x.id; });
         if (!ids.length) return;
-        mutate('approveCases', { ids: ids }, el, 'กำลังอนุมัติ', function (d) {
-          openSheet({ kind: 'done', icon: 'seal', title: 'อนุมัติแล้ว ' + d.items.length + ' รายการ', sub: 'แจ้งนักเรียนและครูผู้สอนเรียบร้อย' });
-        });
+        optimistic('approveCases', { ids: ids }, function () {
+          var sn = ids.map(snapCase);
+          ids.forEach(function (x) { var cc = caseById(x); if (cc) { cc.status = 'APPROVED'; cc.upd = now(); } });
+          return sn;
+        }, function (sn) { sn.forEach(restoreCase); }).catch(function () {});
+        openSheet({ kind: 'done', icon: 'seal', title: 'อนุมัติแล้ว ' + ids.length + ' รายการ', sub: 'ระบบกำลังแจ้งนักเรียนและครูผู้สอน' });
         break;
     }
   });
@@ -1508,7 +1538,11 @@
     applyTheme();
     fileInputs();
     if (navigator.onLine === false) offlineBar(true);
-    if (!API.getToken()) { render(); return; }
+    if (!API.getToken()) {
+      render();
+      API.call('ping').catch(function () {}); // ปลุกเซิร์ฟเวอร์ระหว่างผู้ใช้พิมพ์รหัส
+      return;
+    }
     S.user = API.cachedUser();
     if (!S.user) { API.clear(); render(); return; }
     loadCache();
