@@ -1,4 +1,4 @@
-/* app.js : Step 6 (ปรับความเร็ว: ตอบสนองทันที ลดจำนวนครั้งที่เรียกเซิร์ฟเวอร์)
+/* app.js : Step 5 LINE ผู้ปกครอง + Step 6 ความเร็ว
  * - นักเรียน: หน้าหลัก รายวิชาที่ต้องแก้ รับทราบ ติ๊กสิ่งที่ทำแล้ว ข้อความถึงครู
  * - ครู: งานของฉัน รายชื่อนักเรียน บันทึก 0 ร มส เลื่อนกำหนด แจ้งเตือนนักเรียน
  * - งานวัดผล: ภาพรวม รายงานรายห้องและพิมพ์รายบุคคล
@@ -581,7 +581,7 @@
 
   /* ---------- shared ---------- */
   function notifIcon(type) {
-    var m = { 'new': ['bell', 'warn'], alert: ['alert', 'bad'], bell: ['bell', 'warn'], calendar: ['calendar', ''], check: ['check', 'ok'], seal: ['seal', 'ok'], image: ['image', ''] };
+    var m = { 'new': ['bell', 'warn'], alert: ['alert', 'bad'], bell: ['bell', 'warn'], remind: ['bell', 'warn'], auto: ['clock', 'warn'], autolate: ['alert', 'bad'], line: ['chat', 'ok'], calendar: ['calendar', ''], check: ['check', 'ok'], seal: ['seal', 'ok'], image: ['image', ''] };
     return m[type] || ['bell', ''];
   }
   function vNotif() {
@@ -600,7 +600,7 @@
       (u.role === 'student' ? esc(u.classroom) + ' เลขที่ ' + esc(u.number) + ' เลขประจำตัว ' + esc(u.username) : esc(u.department || '') + ' ชื่อผู้ใช้ ' + esc(u.username)) + '</div></div></div>';
     h += '<div class="sec"><h2>บัญชีและการตั้งค่า</h2></div><div class="group">';
     h += '<button class="row" data-act="pw-open"><span class="nf-ic">' + ic('lock', 20) + '</span><span class="row-main"><span class="row-t">เปลี่ยนรหัสผ่าน</span><span class="row-s">แนะนำให้เปลี่ยนทุกภาคเรียน</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
-    h += '<div class="row"><span class="nf-ic ok">' + ic('chat', 20) + '</span><span class="row-main"><span class="row-t">' + (u.role === 'student' ? 'LINE ผู้ปกครอง' : 'LINE ส่วนตัว') + '</span><span class="row-s">' + (u.lineLinked ? 'รับแจ้งเตือนผ่าน LINE OA โรงเรียน' : 'การเชื่อม LINE จะเปิดใช้ในขั้นถัดไป') + '</span></span>' + (u.lineLinked ? '<span class="chip ch-ok">เชื่อมแล้ว</span>' : '<span class="chip">ยังไม่เชื่อม</span>') + '</div>';
+    h += '<button class="row" data-act="line-open"><span class="nf-ic ok">' + ic('chat', 20) + '</span><span class="row-main"><span class="row-t">' + (u.role === 'student' ? 'LINE ผู้ปกครอง' : 'LINE ส่วนตัว') + '</span><span class="row-s">' + (u.lineLinked ? 'รับแจ้งเตือนผ่าน LINE OA โรงเรียน' : (u.role === 'student' ? 'ให้ผู้ปกครองสแกน QR เพื่อรับแจ้งเตือน' : 'รับแจ้งเตือนงานทาง LINE')) + '</span></span>' + (u.lineLinked ? '<span class="chip ch-ok">เชื่อมแล้ว</span>' : '<span class="chip">ยังไม่เชื่อม</span>') + '</button>';
     h += '<button class="row" data-act="theme"><span class="nf-ic">' + ic('moon', 20) + '</span><span class="row-main"><span class="row-t">โหมดมืด</span><span class="row-s">ถนอมสายตาตอนกลางคืน</span></span><span class="sw' + (isDark() ? ' on' : '') + '" role="switch" aria-checked="' + isDark() + '"></span></button>';
     h += '<button class="row" data-act="howto"><span class="nf-ic">' + ic('phone', 20) + '</span><span class="row-main"><span class="row-t">เพิ่มไว้ที่หน้าจอโทรศัพท์</span><span class="row-s">เปิดได้เหมือนแอป ไม่ต้องพิมพ์ลิงก์</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     h += '</div>' + manageSection() + '<button class="btn btn-bad btn-block" data-act="logout" style="margin-top:20px">' + ic('logout', 20) + 'ออกจากระบบ</button>';
@@ -661,12 +661,15 @@
     else if (k === 'form') inner = shForm();
     else if (k === 'temp') inner = shTemp();
     else if (k === 'import') inner = shImport();
+    else if (k === 'line') inner = shLine();
+    else if (k === 'linestatus') inner = shLineStatus();
     else if (k === 'reject') inner = shReject();
     else if (k === 'img') inner = shImg();
     else if (k === 'done') inner = '<div class="done-ic">' + ic(S.sheet.icon || 'check', 44) + '</div><h3 class="done-t">' + esc(S.sheet.title) + '</h3><p class="done-s">' + esc(S.sheet.sub) + '</p>' + (S.sheet.next ? '<ol class="next">' + S.sheet.next.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : '') +
       '<div class="actbar-in">' + (S.sheet.home ? '<button class="btn btn-primary" data-act="done-home">กลับหน้าแรก</button>' : '') + (S.sheet.again ? '<button class="btn btn-ghost" data-act="new-case">บันทึกคนต่อไป</button>' : '') + (S.sheet.home ? '' : '<button class="btn btn-primary" data-act="close-sheet">' + esc(S.sheet.btn || 'ตกลง') + '</button>') + '</div>';
     el.innerHTML = '<div class="sheet-bg" data-act="close-sheet"><div class="sheet" data-act="noop" role="dialog" aria-modal="true"><div class="grab"></div>' + inner + '</div></div>';
     document.body.style.overflow = 'hidden';
+    if (k === 'line' && S.sheet.code) drawQR();
   }
 
   function gradeOptions(cap) {
@@ -840,6 +843,72 @@
     }).catch(function (e) { toast(e.message || 'โหลดรายชื่อนักเรียนไม่สำเร็จ'); });
   }
 
+  /* ---------- LINE ---------- */
+  function loadQR(cb) {
+    if (window.QRCode) return cb();
+    var sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    sc.onload = function () { cb(); };
+    sc.onerror = function () { cb(true); };
+    document.head.appendChild(sc);
+  }
+  function drawQR() {
+    var s = S.sheet, box = $('qrBox');
+    if (!s || !box || !s.link) return;
+    loadQR(function (err) {
+      var b = $('qrBox');
+      if (!b || err || !window.QRCode) { if (b) b.innerHTML = ''; return; }
+      b.innerHTML = '';
+      new window.QRCode(b, { text: s.link, width: 196, height: 196, correctLevel: window.QRCode.CorrectLevel.M });
+    });
+  }
+  function openLine(target, sid, name) {
+    openSheet({ kind: 'line', target: target, sid: sid || null, name: name || '' });
+  }
+  function shLine() {
+    var s = S.sheet, u = S.user, isStu = s.target === 'student' || u.role === 'student';
+    var title = s.target === 'student' ? 'LINE ผู้ปกครองของ ' + s.name : (u.role === 'student' ? 'LINE ผู้ปกครอง' : 'LINE ส่วนตัว');
+    var linked = s.target === 'student' ? s.linked : u.lineLinked;
+    var lineOn = setting('lineEnabled', false) === true || String(setting('lineEnabled', '')).toUpperCase() === 'TRUE';
+    var h = '<h3 class="sh-t">' + esc(title) + '</h3>';
+    h += '<p class="sh-s">' + (isStu ? 'ผู้ปกครองจะได้รับแจ้งเตือนทาง LINE เมื่อมีรายการ 0 ร มส ผลการแก้ และก่อนครบกำหนด' : 'รับแจ้งเตือนทาง LINE เมื่อมีนักเรียนส่งหลักฐาน และสรุปงานทุกเช้า') + '</p>';
+    if (!lineOn) return h + '<div class="banner info" style="margin-top:0">' + ic('alert') + '<div><b>ระบบยังไม่เปิดใช้ LINE</b><p>ผู้ดูแลระบบต้องตั้งค่า LINE OA ก่อน</p></div></div><button class="btn btn-ghost btn-block" data-act="close-sheet" style="margin-top:14px">ปิด</button>';
+    if (linked) h += '<div class="banner ok" style="margin:0 0 14px">' + ic('check') + '<div><b>เชื่อมแล้ว</b><p>' + (isStu ? 'เชื่อมผู้ปกครองได้สูงสุด 3 บัญชี สร้าง QR ใหม่เพื่อเพิ่มอีกคนได้' : 'บัญชี LINE นี้จะได้รับแจ้งเตือน') + '</p></div></div>';
+    if (s.err) h += '<div class="err">' + esc(s.err) + '</div>';
+    if (!s.code) {
+      h += '<button class="btn btn-primary btn-block" data-act="line-code">' + (s.loading ? '<span class="spin"></span>กำลังสร้าง' : ic('chat', 20) + (linked && isStu ? 'สร้าง QR เชื่อมผู้ปกครองอีกคน' : 'สร้าง QR สำหรับเชื่อม')) + '</button>';
+    } else {
+      var oa = s.oaId;
+      h += '<div class="qr-wrap">' + (s.link ? '<div id="qrBox" class="qr"><span class="spin"></span></div>' : '') +
+        '<div class="temp-pw" style="margin-top:12px">' + esc(s.code) + '</div><p class="sh-s" style="text-align:center">รหัสใช้ได้ 30 นาที ใช้ได้ครั้งเดียว</p></div>';
+      h += '<ol class="next">' + (s.link
+        ? (isStu ? '<li>ผู้ปกครองเปิด LINE แล้วสแกน QR นี้ (หรือส่งภาพหน้าจอให้ผู้ปกครอง)</li>' : '<li>สแกน QR นี้ หรือกดปุ่มเปิด LINE ด้านล่าง</li>') + '<li>กดส่งข้อความ ผูก ' + esc(s.code) + ' ที่ขึ้นมาในแชท</li><li>รอข้อความตอบกลับ เชื่อมสำเร็จ</li>'
+        : '<li>เพิ่มเพื่อน LINE OA ของโรงเรียน</li><li>พิมพ์ ผูก ' + esc(s.code) + ' ในแชท</li>') + '</ol>';
+      h += '<div class="actbar-in">' + (s.link ? '<a class="btn btn-ok" href="' + esc(s.link) + '" target="_blank" rel="noopener">' + ic('chat', 20) + 'เปิด LINE</a>' : '') +
+        '<button class="btn btn-ghost" data-act="line-check">ตรวจสอบสถานะ</button></div>';
+      if (oa && s.addFriend) h += '<p class="hint" style="text-align:center;margin-top:10px">ยังไม่ได้เพิ่มเพื่อน? <a href="' + esc(s.addFriend) + '" target="_blank" rel="noopener">เพิ่มเพื่อน ' + esc(oa) + '</a></p>';
+    }
+    if (linked) h += '<button class="btn btn-bad btn-block" data-act="line-unlink" style="margin-top:14px">ยกเลิกการเชื่อม LINE ' + (isStu ? 'ผู้ปกครองทั้งหมด' : '') + '</button>';
+    return h + '<button class="btn btn-ghost btn-block" data-act="close-sheet" style="margin-top:10px">ปิด</button>';
+  }
+  function shLineStatus() {
+    var d = S.sheet.data;
+    var h = '<h3 class="sh-t">LINE OA ของโรงเรียน</h3>';
+    if (!d) return h + '<div class="soon"><span class="spin"></span></div>';
+    h += '<div class="group" style="margin-bottom:14px"><dl class="kv">' +
+      '<dt>สถานะ</dt><dd>' + (d.enabled && d.hasToken ? '<span class="chip ch-ok">เปิดใช้งาน</span>' : '<span class="chip ch-bad">ยังไม่เปิด</span>') + '</dd>' +
+      '<dt>บัญชี</dt><dd>' + (d.bot ? esc(d.bot.name + ' ' + d.bot.basicId) : '-') + '</dd>' +
+      '<dt>ข้อความ push เดือนนี้</dt><dd>' + (d.used === null ? '-' : esc(d.used)) + (d.quota ? ' / ' + esc(d.quota) : '') + '</dd>' +
+      '<dt>ผู้ปกครองที่เชื่อม</dt><dd>' + d.parents + ' บัญชี (' + d.students + ' นักเรียน)</dd>' +
+      '<dt>ครูที่เชื่อม</dt><dd>' + d.staff + ' คน</dd></dl></div>';
+    if (d.error) h += '<div class="warnbox" style="margin-bottom:14px">' + esc(d.error) + '</div>';
+    if (d.quota && d.used !== null && d.used >= d.quota * 0.8) h += '<div class="warnbox" style="margin-bottom:14px">ใช้โควตาไปแล้วเกิน 80% พิจารณาปิดการแจ้งเตือนบางประเภทในหน้าตั้งค่า</div>';
+    h += '<span class="lbl">Webhook URL (ใส่ใน LINE Developers ห้ามเปิดเผย)</span><div class="cols-hint" style="word-break:break-all;user-select:all">' + esc(d.webhook || 'Deploy เป็น Web app ก่อน') + '</div>';
+    h += '<div class="actbar-in"><button class="btn btn-ghost" data-act="copy-text" data-v="' + esc(d.webhook) + '">คัดลอก URL</button><button class="btn btn-ghost" data-act="line-test">ทดสอบส่ง</button></div>';
+    h += '<button class="btn btn-primary btn-block" data-act="adm-open" data-v="settings" style="margin-top:10px">ตั้งค่า LINE</button>';
+    return h;
+  }
+
   /* ---------- admin ---------- */
   var PREFIX_STAFF = [['นาย', 'นาย'], ['นาง', 'นาง'], ['นางสาว', 'นางสาว']];
   var PREFIX_STU = [['ด.ช.', 'ด.ช.'], ['ด.ญ.', 'ด.ญ.'], ['นาย', 'นาย'], ['นางสาว', 'นางสาว']];
@@ -855,8 +924,16 @@
     { k: 'remindDaysBefore', label: 'แจ้งเตือนก่อนครบกำหนด (วัน)', type: 'number' },
     { k: 'maxUploadMB', label: 'ขนาดไฟล์หลักฐานสูงสุด (MB)', type: 'number' },
     { k: 'schoolName', label: 'ชื่อโรงเรียน', type: 'text' },
-    { k: 'areaName', label: 'สังกัด', type: 'text' }
+    { k: 'areaName', label: 'สังกัด', type: 'text' },
+    { k: 'lineEnabled', label: 'เปิดใช้ LINE แจ้งเตือน', type: 'switch', hint: 'ต้องใส่ Channel access token ด้านล่างด้วย' },
+    { k: 'lineChannelToken', label: 'Channel access token (long-lived)', type: 'text', hint: 'จาก LINE Developers > Messaging API ถ้าเห็น •••••• แปลว่าใส่แล้ว' },
+    { k: 'lineOaId', label: 'LINE OA Basic ID', ph: 'เช่น @banlalom', hint: 'ใช้สร้าง QR ให้ผู้ปกครองสแกน' },
+    { k: 'appUrl', label: 'ลิงก์เว็บระบบ', ph: 'https://followup-student.vercel.app', hint: 'แนบท้ายข้อความ LINE ให้ผู้ปกครองกดเปิด' },
+    { k: 'lineNotifyNew', label: 'ส่ง LINE เมื่อครูบันทึก 0 ร มส', type: 'switch' },
+    { k: 'lineNotifyResult', label: 'ส่ง LINE เมื่อมีผลการแก้ ส่งกลับ หรือครูเตือน', type: 'switch' },
+    { k: 'lineNotifyRemind', label: 'ส่ง LINE เตือนอัตโนมัติก่อนและหลังครบกำหนด', type: 'switch', hint: 'ใช้โควตามากที่สุด ปิดได้ถ้าโควตาไม่พอ' }
   ];
+  function boolish(v) { return v === true || String(v).toUpperCase() === 'TRUE'; }
   function isAdmin() { return S.user.role === 'admin'; }
   function isManager() { return S.user.role === 'admin' || S.user.role === 'measure'; }
 
@@ -945,7 +1022,8 @@
         { k: 'parentName', label: 'ชื่อผู้ปกครอง' }, { k: 'parentPhone', label: 'เบอร์โทรผู้ปกครอง' },
         { k: 'active', label: 'กำลังศึกษาอยู่', type: 'switch', hint: 'ปิดเมื่อย้ายหรือจบการศึกษา' }
       ],
-      extra: st ? '<button class="btn btn-ghost btn-block" data-act="adm-reset" data-kind="student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('lock', 20) + 'รีเซ็ตรหัสผ่านนักเรียน</button>' : ''
+      extra: st ? '<button class="btn btn-ghost btn-block" data-act="adm-reset" data-kind="student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('lock', 20) + 'รีเซ็ตรหัสผ่านนักเรียน</button>' +
+        '<button class="btn btn-ghost btn-block" data-act="line-student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('chat', 20) + 'QR เชื่อม LINE ผู้ปกครอง' + (st.lineLinked ? ' (เชื่อมแล้ว)' : '') + '</button>' : ''
     });
   }
   function teacherOptions() {
@@ -972,7 +1050,11 @@
     var v = S.adm.settings;
     if (!v) { openSheet({ kind: 'form', form: 'settings', title: 'ตั้งค่าระบบ', sub: 'กำลังโหลด', values: {}, fields: [], readonly: true }); loadAdm('settings'); return; }
     var vals = {};
-    SETTING_FIELDS.forEach(function (f) { vals[f.k] = v[f.k] === undefined ? '' : String(v[f.k]); });
+    SETTING_FIELDS.forEach(function (f) {
+      if (f.type === 'switch') vals[f.k] = v[f.k] === undefined || v[f.k] === '' ? (f.k !== 'lineEnabled') : boolish(v[f.k]);
+      else vals[f.k] = v[f.k] === undefined ? '' : String(v[f.k]);
+    });
+    if (!vals.appUrl) vals.appUrl = location.origin;
     openSheet({ kind: 'form', form: 'settings', title: 'ตั้งค่าระบบ', sub: isAdmin() ? 'มีผลกับทุกคนทันทีหลังบันทึก' : 'ดูได้อย่างเดียว แก้ไขได้เฉพาะผู้ดูแลระบบ', readonly: !isAdmin(), values: vals, fields: SETTING_FIELDS });
   }
 
@@ -989,7 +1071,10 @@
       action = 'adminSaveSubject'; payload = { item: v };
     } else {
       var changes = {}, cur = S.adm.settings || {};
-      SETTING_FIELDS.forEach(function (f) { if (String(cur[f.k]) !== String(v[f.k])) changes[f.k] = v[f.k]; });
+      SETTING_FIELDS.forEach(function (f) {
+        if (f.type === 'switch') { if (boolish(cur[f.k]) !== !!v[f.k] || cur[f.k] === undefined || cur[f.k] === '') changes[f.k] = !!v[f.k]; }
+        else if (String(cur[f.k] === undefined ? '' : cur[f.k]) !== String(v[f.k])) changes[f.k] = v[f.k];
+      });
       if (!Object.keys(changes).length) { closeSheet(); return; }
       action = 'saveSettings'; payload = { changes: changes };
     }
@@ -1099,6 +1184,7 @@
       rows.push(['users', 'users', 'ครูและเจ้าหน้าที่', isAdmin() ? 'เพิ่มครู กำหนดบทบาท รีเซ็ตรหัส' : 'ดูรายชื่อครู']);
       rows.push(['students', 'user', 'นักเรียน', 'นำเข้าจาก Excel แก้ไขข้อมูล รีเซ็ตรหัส']);
       rows.push(['subjects', 'file', 'รายวิชา', 'รหัสวิชาและครูผู้สอน']);
+      if (isAdmin()) rows.push(['line', 'chat', 'LINE OA', 'สถานะ โควตาข้อความ Webhook ทดสอบส่ง']);
       rows.push(['settings', 'lock', 'ตั้งค่าระบบ', isAdmin() ? 'ปีการศึกษา เกณฑ์การแก้ การแจ้งเตือน' : 'ดูเกณฑ์ที่ใช้อยู่']);
     } else if (u.role === 'teacher' && u.advisorClass) {
       rows.push(['students', 'user', 'นักเรียนห้อง ' + u.advisorClass, 'รีเซ็ตรหัสเมื่อนักเรียนลืม']);
@@ -1364,6 +1450,12 @@
 
       case 'adm-open':
         if (v === 'settings') { settingsForm(); break; }
+        if (v === 'line') {
+          openSheet({ kind: 'linestatus', data: null });
+          API.call('lineStatus').then(function (d) { if (S.sheet && S.sheet.kind === 'linestatus') { S.sheet.data = d; renderSheet(); } })
+            .catch(function (err) { closeSheet(); toast(err.message || 'โหลดสถานะ LINE ไม่สำเร็จ'); });
+          break;
+        }
         S.aq = ''; S.acls = 'all';
         push({ v: 'adm-' + v }); loadAdm(v, true);
         if (v === 'subjects') loadAdm('users');
@@ -1403,6 +1495,54 @@
           haptic(); S.adm.students = null; loadAdm('students', true); S.students = null;
           openSheet({ kind: 'done', icon: 'check', title: 'นำเข้าแล้ว', sub: 'เพิ่มใหม่ ' + d.created + ' คน อัปเดต ' + d.updated + ' คน', next: d.created ? ['นักเรียนใหม่ใช้เลขประจำตัวเป็นรหัสผ่านครั้งแรก', 'ระบบจะให้ตั้งรหัสใหม่ตอนเข้าใช้ครั้งแรก'] : null });
         }).catch(function (err) { setBusy(el, false); if (ie) ie.textContent = err.message || 'นำเข้าไม่สำเร็จ'; });
+        break;
+
+      case 'line-open': openLine('self'); break;
+      case 'line-student':
+        var lst = (S.adm.students || []).filter(function (x) { return x.id === id; })[0];
+        openSheet({ kind: 'line', target: 'student', sid: id, name: lst ? lst.name : id, linked: lst ? lst.lineLinked : false });
+        break;
+      case 'line-code':
+        s.loading = true; s.err = ''; renderSheet();
+        API.call('lineLinkCode', s.sid ? { studentId: s.sid } : {}).then(function (d) {
+          if (!S.sheet || S.sheet.kind !== 'line') return;
+          S.sheet.loading = false; S.sheet.code = d.code; S.sheet.link = d.link; S.sheet.oaId = d.oaId; S.sheet.addFriend = d.addFriend;
+          if (!d.lineOn) S.sheet.err = 'ระบบ LINE ยังไม่เปิดใช้งาน ผู้ปกครองจะยังไม่ได้รับข้อความ';
+          renderSheet();
+        }).catch(function (err) { if (S.sheet) { S.sheet.loading = false; S.sheet.err = err.message || 'สร้างรหัสไม่สำเร็จ'; renderSheet(); } });
+        break;
+      case 'line-check':
+        if (s.target === 'student') {
+          S.adm.students = null;
+          API.call('adminStudents').then(function (list) {
+            S.adm.students = list; render();
+            var x = list.filter(function (y) { return y.id === s.sid; })[0];
+            if (S.sheet && S.sheet.kind === 'line') { S.sheet.linked = !!(x && x.lineLinked); S.sheet.code = null; renderSheet(); }
+            toast(x && x.lineLinked ? 'เชื่อม LINE ผู้ปกครองแล้ว' : 'ยังไม่พบการเชื่อม ลองอีกครั้งหลังผู้ปกครองส่งข้อความ');
+          }).catch(function () {});
+        } else {
+          API.call('me').then(function (d) {
+            S.user = d.user; API.setSession(null, d.user); render();
+            if (S.sheet && S.sheet.kind === 'line') { if (d.user.lineLinked) S.sheet.code = null; renderSheet(); }
+            toast(d.user.lineLinked ? 'เชื่อม LINE แล้ว' : 'ยังไม่พบการเชื่อม ลองอีกครั้งหลังส่งข้อความในแชท');
+          }).catch(function () {});
+        }
+        break;
+      case 'line-unlink':
+        setBusy(el, true, 'กำลังยกเลิก');
+        API.call('lineUnlink', s.target === 'student' ? { studentId: s.sid } : {}).then(function () {
+          if (s.target === 'student') { s.linked = false; S.adm.students = null; loadAdm('students', true); }
+          else { S.user.lineLinked = false; API.setSession(null, S.user); }
+          closeSheet(); render(); toast('ยกเลิกการเชื่อม LINE แล้ว');
+        }).catch(function (err) { setBusy(el, false); toast(err.message || 'ยกเลิกไม่สำเร็จ'); });
+        break;
+      case 'line-test':
+        setBusy(el, true, 'กำลังส่ง');
+        API.call('lineTest').then(function () { setBusy(el, false); toast('ส่งข้อความทดสอบแล้ว ดูใน LINE ของคุณ'); })
+          .catch(function (err) { setBusy(el, false); toast(err.message || 'ส่งไม่สำเร็จ'); });
+        break;
+      case 'copy-text':
+        try { navigator.clipboard.writeText(v).then(function () { toast('คัดลอกแล้ว'); }, function () { toast('คัดลอกไม่ได้'); }); } catch (err) { toast('คัดลอกไม่ได้'); }
         break;
 
       case 'add-cam': case 'add-pick':
