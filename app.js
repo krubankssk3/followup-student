@@ -149,18 +149,39 @@
   function hasSwal() { return !!window.Swal; }
   /** ทุกป๊อปอัปผ่านฟังก์ชันนี้ ให้มีเอฟเฟคเฟดเข้าออกแบบเดียวกัน */
   function swalFire(o) {
+    var userOpen = o.didOpen;
+    o.didOpen = function (popup) {
+      if (!o.toast && popup && !popup.querySelector('.ai-corners')) {
+        var cn = document.createElement('div'); cn.className = 'ai-corners'; cn.innerHTML = '<i></i><i></i><i></i><i></i>';
+        popup.appendChild(cn);
+      }
+      if (userOpen) userOpen(popup);
+    };
     o.showClass = o.toast ? { popup: 'sw-tin' } : { popup: 'sw-in' };
     o.hideClass = o.toast ? { popup: 'sw-tout' } : { popup: 'sw-out' };
     return window.Swal.fire(o);
   }
+  var AI_CODES = ['◆ ESTABLISHING SECURE LINK', '◆ SYNCING DATA NODES', '◆ ANALYZING RECORDS', '◆ OPTIMIZING RESULT', '◆ ALMOST READY'];
+  var aiTimer = null;
   function loaderHtml(text, sub) {
     var src = logoSrc();
-    return '<div class="sw-load"><div class="sw-ring"></div>' + (src ? '<img src="' + esc(src) + '" alt="" onerror="this.style.display=\'none\'">' : '<span class="sw-ic">' + ic('cap', 40) + '</span>') + '</div>' +
-      '<div class="sw-text">' + esc(text || 'กำลังโหลด') + '</div>' + (sub ? '<div class="sw-sub">' + esc(sub) + '</div>' : '');
+    return '<div class="ai-load"><div class="ai-orbit o1"><span class="sat"></span></div><div class="ai-orbit o2"><span class="sat"></span></div><div class="ai-orbit o3"></div>' +
+      '<div class="ai-core">' + (src ? '<img src="' + esc(src) + '" alt="" onerror="this.style.display=\'none\'">' : ic('cap', 36)) + '</div></div>' +
+      '<div class="ai-text">' + esc(text || 'กำลังโหลด') + '<span class="cur"></span></div>' + (sub ? '<div class="ai-sub">' + esc(sub) + '</div>' : '') +
+      '<div class="ai-bar"><i></i></div><div class="ai-code" id="aiCode">' + AI_CODES[0] + '</div>';
+  }
+  function startAiCodes() {
+    clearInterval(aiTimer);
+    var i = 0;
+    aiTimer = setInterval(function () {
+      var el = document.getElementById('aiCode');
+      if (!el) { clearInterval(aiTimer); return; }
+      i = (i + 1) % AI_CODES.length; el.textContent = AI_CODES[i];
+    }, 700);
   }
   function loading(text, sub) {
     if (!hasSwal()) return;
-    swalFire({ html: loaderHtml(text, sub), showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false, customClass: { popup: 'sw-pop' } });
+    swalFire({ html: loaderHtml(text, sub), showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false, customClass: { popup: 'sw-pop' }, didOpen: startAiCodes });
   }
   function loaded() { if (hasSwal() && window.Swal.isVisible() && !document.querySelector('.swal2-toast')) window.Swal.close(); }
   function confirmBox(o) {
@@ -222,7 +243,8 @@
     for (var i = 0; i < S.cases.length; i++) { if (S.cases[i].id === item.id) { S.cases[i] = item; return; } }
     S.cases.unshift(item);
   }
-  function isOpen(c) { return c.status !== 'APPROVED' && c.status !== 'REPEAT'; }
+  function isOpen(c) { return c.status !== 'APPROVED' && c.status !== 'REPEAT' && c.status !== 'HOLD'; }
+  var HOLD_LABEL = { SUSPENDED: 'แขวนการติดตาม', WITHDRAWN: 'ถอนชื่อ' };
   function isOverdue(c) { return (c.status === 'OPEN' || c.status === 'DOING') && c.due && c.due < now(); }
   function allDone(c) { for (var i = 0; i < c.tasks.length; i++) { if (!c.tasks[i].done) return false; } return c.tasks.length > 0; }
   function capOf(c) { return c.type === '0' ? +setting('capZero', 1) : (c.type === 'มส' ? +setting('capMs', 1) : 4); }
@@ -231,6 +253,7 @@
   function urgency(c) {
     if (c.status === 'APPROVED') return 9e15 - (c.upd || 0);
     if (c.status === 'REPEAT') return 8e15;
+    if (c.status === 'HOLD') return 8.5e15;
     if (c.status === 'SUBMITTED' || c.status === 'PASSED') return 4e15 + (c.due || 0);
     return c.due || 0;
   }
@@ -244,6 +267,7 @@
     var cls, txt;
     if (c.status === 'APPROVED') { cls = 'tok'; txt = '<span class="st-in"><small>ได้</small>' + esc(c.grade) + '</span>'; }
     else if (c.status === 'REPEAT') { cls = 'trep'; txt = 'ซ้ำ'; }
+    else if (c.status === 'HOLD') { cls = 'trep'; txt = 'แขวน'; }
     else { cls = tcls(c.type); txt = esc(c.type); }
     return '<span class="stamp ' + cls + (lg ? ' lg' : '') + '">' + txt + '</span>';
   }
@@ -251,7 +275,7 @@
   function chip(c) {
     var m = {
       OPEN: ['รอรับทราบ', 'warn'], DOING: [c.rejectNote ? 'ครูขอให้แก้' : 'กำลังแก้', 'warn'], SUBMITTED: ['รอครูตรวจ', 'info'],
-      PASSED: ['รออนุมัติ', 'info'], APPROVED: ['แก้เสร็จ', 'ok'], REPEAT: ['เรียนซ้ำ', 'bad']
+      PASSED: ['รออนุมัติ', 'info'], APPROVED: ['แก้เสร็จ', 'ok'], REPEAT: ['เรียนซ้ำ', 'bad'], HOLD: [HOLD_LABEL[c.hold] || 'แขวน', 'hold']
     }[c.status] || [c.status, ''];
     if (isOverdue(c)) m = ['เลยกำหนด', 'bad'];
     return '<span class="chip ch-' + m[1] + '">' + m[0] + '</span>';
@@ -259,6 +283,7 @@
   function dueInfo(c) {
     if (c.status === 'APPROVED') return { t: 'แก้เสร็จ ' + thDate(c.upd), k: 'ok' };
     if (c.status === 'REPEAT') return { t: 'ต้องลงทะเบียนเรียนซ้ำ', k: 'bad' };
+    if (c.status === 'HOLD') return { t: 'หยุดติดตามชั่วคราว', k: 'muted' };
     if (c.status === 'SUBMITTED') return { t: 'ส่งแล้ว รอครูตรวจ', k: 'info' };
     if (c.status === 'PASSED') return { t: 'ผ่านแล้ว รองานวัดผลอนุมัติ', k: 'info' };
     if (!c.due) return { t: 'ไม่ได้กำหนดวันส่ง', k: 'muted' };
@@ -369,13 +394,16 @@
 
   /* ---------- student ---------- */
   function vStudentHome() {
-    var u = S.user, cs = S.cases.slice().sort(byUrg);
+    var u = S.user, all = S.cases.slice().sort(byUrg);
+    var held = all.filter(function (c) { return c.status === 'HOLD'; });
+    var cs = all.filter(function (c) { return c.status !== 'HOLD'; });
     var open = cs.filter(isOpen), done = cs.filter(function (c) { return c.status === 'APPROVED'; }).length;
     var msg = !cs.length ? ['ไม่มีวิชาที่ต้องแก้', 'เยี่ยมมาก รักษาผลการเรียนแบบนี้ไว้'] : (!open.length ? ['แก้ครบทุกวิชาแล้ว', 'เยี่ยมมาก รักษาผลการเรียนแบบนี้ไว้'] : (done === 0 ? ['เริ่มทีละวิชา เดี๋ยวก็ครบ', 'เหลือ ' + open.length + ' วิชา ทำวิชาที่ใกล้ครบกำหนดก่อน'] : ['อีกนิดเดียว สู้ ๆ', 'เหลืออีก ' + open.length + ' วิชา']));
     var h = heroHeader(esc(u.firstName), esc(u.classroom) + ' เลขที่ ' + esc(u.number) + ' ' + term(),
       S.loaded ? '<div class="hero-row">' + ring(done, cs.length) + '<div class="hero-msg"><b>' + msg[0] + '</b><span>' + msg[1] + '</span></div></div>' : '');
     h += '<main class="main">' + syncNote();
     if (!S.loaded) return h + loadingHtml() + '</main>';
+    if (held.length) h += '<div class="banner info" style="margin:0 0 14px">' + ic('clock') + '<div><b>' + (HOLD_LABEL[held[0].hold] || 'แขวนการติดตาม') + ' ' + held.length + ' วิชา</b><p>' + esc(held[0].holdNote || 'ติดต่อครูที่ปรึกษาหากมีข้อสงสัย') + '</p></div></div>';
     var next = null;
     for (var i = 0; i < cs.length; i++) { if (cs[i].status === 'OPEN' || cs[i].status === 'DOING') { next = cs[i]; break; } }
     if (next) h += focusCard(next);
@@ -405,6 +433,7 @@
     h += '<div class="hero">' + stamp(c, true) + '<div><div class="hero-t">' + typeName(c.type) + '</div><div class="hero-s">' + esc(c.cause || '-') + '</div>' +
       '<div class="hero-s">' + (c.type !== 'ร' ? 'แก้ครั้งที่ ' + c.attempt + ' จาก ' + setting('maxAttempts', 2) + ' ครั้ง ' : '') + 'ผลหลังแก้สูงสุด ' + capOf(c) + '</div></div></div>';
     if (c.rejectNote && c.status === 'DOING') h += '<div class="banner bad">' + ic('alert') + '<div><b>ครูขอให้แก้หลักฐาน</b><p>' + esc(c.rejectNote) + '</p></div></div>';
+    if (c.status === 'HOLD') h += '<div class="banner info">' + ic('clock') + '<div><b>' + (HOLD_LABEL[c.hold] || 'แขวนการติดตาม') + '</b><p>' + esc(c.holdNote || 'งานวัดผลหยุดการติดตามรายการนี้ไว้') + '</p></div></div>';
     if (c.status === 'REPEAT') h += '<div class="banner bad">' + ic('alert') + '<div><b>ต้องลงทะเบียนเรียนซ้ำ</b><p>' + (c.type === 'มส' && c.ms !== null ? 'เวลาเรียน ' + esc(c.ms) + '% ต่ำกว่าเกณฑ์' : 'แก้ครบจำนวนครั้งแล้วยังไม่ผ่าน') + ' ติดต่องานวัดผลเพื่อวางแผนเรียนซ้ำ</p></div></div>';
     if (c.status === 'APPROVED') h += '<div class="banner ok">' + ic('seal') + '<div><b>แก้เสร็จแล้ว ได้ระดับผลการเรียน ' + esc(c.grade) + '</b><p>งานวัดผลบันทึกผลแล้ว</p></div></div>';
 
@@ -467,6 +496,7 @@
   }
   function caseActions(c) {
     var role = S.user.role, id = esc(c.id);
+    if (c.status === 'HOLD') return role === 'student' ? '' : actbar('<button class="btn btn-ghost" data-act="open-report" data-v="' + esc(c.sid) + '">' + ic('printer', 20) + 'พิมพ์รายงานนักเรียน</button>');
     if (role === 'student') {
       if (c.status === 'OPEN') return actbar('<button class="btn btn-primary" data-act="ack" data-id="' + id + '">' + ic('check') + 'รับทราบและเริ่มแก้</button>');
       if (c.status === 'DOING') {
@@ -513,6 +543,7 @@
     if (f === '0' || f === 'ร' || f === 'มส') return isOpen(c) && c.type === f;
     if (f === 'late') return isOverdue(c);
     if (f === 'review') return c.status === 'SUBMITTED';
+    if (f === 'hold') return c.status === 'HOLD';
     return true;
   }
   function studentListHtml() {
@@ -540,7 +571,7 @@
     var f = [['all', 'ทั้งหมด']];
     if (u.role === 'teacher') f.push(['mine', 'วิชาที่ฉันสอน']);
     if (u.advisorClass) f.push(['adv', 'ห้องที่ปรึกษา ' + u.advisorClass]);
-    f = f.concat([['late', 'เลยกำหนด'], ['review', 'รอตรวจ'], ['0', 'ติด 0'], ['ร', 'ติด ร'], ['มส', 'ติด มส'], ['m1', 'ม.1'], ['m2', 'ม.2'], ['m3', 'ม.3']]);
+    f = f.concat([['late', 'เลยกำหนด'], ['review', 'รอตรวจ'], ['hold', 'แขวน/ถอนชื่อ'], ['0', 'ติด 0'], ['ร', 'ติด ร'], ['มส', 'ติด มส'], ['m1', 'ม.1'], ['m2', 'ม.2'], ['m3', 'ม.3']]);
     var h = '<header class="top col"><div style="display:flex;align-items:center;gap:10px"><div class="top-h" style="flex:1">นักเรียน</div>' + refreshBtn('') + '</div><label class="search">' + ic('search', 20) + '<input id="q" type="search" placeholder="ค้นหาชื่อ เลขประจำตัว ห้อง หรือวิชา" value="' + esc(S.q) + '" aria-label="ค้นหานักเรียน"></label></header>';
     h += '<main class="main" style="padding-top:4px"><div class="chips" role="group" aria-label="ตัวกรอง">' + f.map(function (x) {
       return '<button class="fchip" data-act="filter" data-v="' + esc(x[0]) + '" aria-pressed="' + (S.filter === x[0]) + '">' + esc(x[1]) + '</button>';
@@ -938,7 +969,7 @@
   }
   function paperHtml(sid, cs) {
     var cfg = reportCfg(), s = cs[0] || {}, done = cs.filter(function (c) { return c.status === 'APPROVED'; }).length;
-    var st = { OPEN: 'รอรับทราบ', DOING: 'กำลังแก้', SUBMITTED: 'รอครูตรวจ', PASSED: 'รออนุมัติ', APPROVED: 'แก้เสร็จ', REPEAT: 'เรียนซ้ำ' };
+    var st = { OPEN: 'รอรับทราบ', DOING: 'กำลังแก้', SUBMITTED: 'รอครูตรวจ', PASSED: 'รออนุมัติ', APPROVED: 'แก้เสร็จ', REPEAT: 'เรียนซ้ำ', HOLD: 'แขวนการติดตาม' };
     var dots = '......................................';
     var src = logoSrc(), d = new Date();
     var h = '<div class="paper"><div class="p-head">' + (src ? '<img class="p-logo" src="' + esc(src) + '" alt="">' : emblem()) +
@@ -1218,11 +1249,69 @@
         { k: 'prefix', label: 'คำนำหน้า', type: 'chips', options: PREFIX_STU },
         { k: 'firstName', label: 'ชื่อ' }, { k: 'lastName', label: 'นามสกุล' },
         { k: 'classroom', label: 'ห้อง', ph: 'เช่น ม.2/1' }, { k: 'number', label: 'เลขที่', type: 'number' },
-        { k: 'parentName', label: 'ชื่อผู้ปกครอง' }, { k: 'parentPhone', label: 'เบอร์โทรผู้ปกครอง' },
-        { k: 'active', label: 'กำลังศึกษาอยู่', type: 'switch', hint: 'ปิดเมื่อย้ายหรือจบการศึกษา' }
+        { k: 'parentName', label: 'ชื่อผู้ปกครอง' }, { k: 'parentPhone', label: 'เบอร์โทรผู้ปกครอง' }
       ],
       extra: st ? '<button class="btn btn-ghost btn-block" data-act="adm-reset" data-kind="student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('lock', 20) + 'รีเซ็ตรหัสผ่านนักเรียน</button>' +
-        '<button class="btn btn-ghost btn-block" data-act="line-student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('chat', 20) + 'QR เชื่อม LINE ผู้ปกครอง' + (st.lineLinked ? ' (เชื่อมแล้ว)' : '') + '</button>' : ''
+        '<button class="btn btn-ghost btn-block" data-act="line-student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('chat', 20) + 'QR เชื่อม LINE ผู้ปกครอง' + (st.lineLinked ? ' (เชื่อมแล้ว)' : '') + '</button>' +
+        statusButtons(st) : ''
+    });
+  }
+  function statusButtons(st) {
+    var h = '<div class="sec" style="margin:14px 2px 10px"><h2>สถานะการติดตาม</h2></div>';
+    if (st.trackStatus) {
+      h += '<div class="banner ' + (st.trackStatus === 'WITHDRAWN' ? 'bad' : 'info') + '" style="margin:0 0 10px">' + ic(st.trackStatus === 'WITHDRAWN' ? 'logout' : 'clock') + '<div><b>' + HOLD_LABEL[st.trackStatus] + (st.trackAt ? ' เมื่อ ' + thDate(st.trackAt) : '') + '</b><p>' + esc(st.trackNote || '-') + '</p></div></div>';
+    } else {
+      h += '<p class="hint" style="margin:-4px 2px 10px">กำลังติดตามตามปกติ</p>';
+    }
+    if (!isManager()) return h;
+    if (st.trackStatus) h += '<button class="btn btn-primary btn-block" data-act="stu-status" data-v="ACTIVE" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('refresh', 20) + 'กลับมาติดตามตามปกติ</button>';
+    if (st.trackStatus !== 'SUSPENDED') h += '<button class="btn btn-warn btn-block" data-act="stu-status" data-v="SUSPENDED" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('clock', 20) + 'แขวนการติดตาม</button>';
+    if (st.trackStatus !== 'WITHDRAWN') h += '<button class="btn btn-bad btn-block" data-act="stu-status" data-v="WITHDRAWN" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('logout', 20) + 'ถอนชื่อ (ย้าย ลาออก พ้นสภาพ)</button>';
+    if (isAdmin()) h += '<button class="btn btn-ghost btn-block" data-act="stu-delete" data-id="' + esc(st.id) + '" style="margin-bottom:10px;color:var(--zero)">' + ic('x', 20) + 'ลบออกจากระบบถาวร</button>';
+    return h;
+  }
+  function askReason(o) {
+    if (!hasSwal()) { var r = window.prompt(o.title + '\n' + (o.text || ''), ''); return Promise.resolve(r === null ? null : r); }
+    return swalFire({
+      title: o.title, html: '<div style="font-size:14.5px">' + esc(o.text || '') + '</div>' + (o.quick ? '<div class="opts" style="justify-content:center;margin-top:12px">' + o.quick.map(function (q) {
+        return '<button type="button" class="fchip" onclick="var t=document.querySelector(\'.swal2-textarea\');t.value=this.textContent;t.focus()">' + esc(q) + '</button>';
+      }).join('') + '</div>' : ''),
+      input: 'textarea', inputPlaceholder: 'ระบุเหตุผล', icon: o.icon || 'question', showCancelButton: true,
+      confirmButtonText: o.ok || 'ยืนยัน', cancelButtonText: 'ยกเลิก', reverseButtons: true,
+      customClass: { popup: 'sw-pop', confirmButton: o.danger ? 'sw-danger' : '' },
+      inputValidator: function (v) { if (o.required && !String(v || '').trim()) return 'กรุณาระบุเหตุผล'; }
+    }).then(function (r) { return r.isConfirmed ? String(r.value || '').trim() : null; });
+  }
+  function setStudentStatus(id, status) {
+    var st = (S.adm.students || []).filter(function (x) { return x.id === id; })[0] || { name: id };
+    var ask = status === 'ACTIVE'
+      ? confirmBox({ title: 'กลับมาติดตาม ' + st.name + '?', text: 'รายการที่ค้างอยู่จะกลับมาติดตามและแจ้งเตือนตามปกติ', ok: 'กลับมาติดตาม' }).then(function (ok) { return ok ? '' : null; })
+      : askReason(status === 'SUSPENDED'
+        ? { title: 'แขวนการติดตาม', text: st.name + ' จะไม่ถูกติดตาม ไม่แจ้งเตือน และไม่นับในสถิติ ยกเลิกได้ภายหลัง', ok: 'แขวนการติดตาม', required: true, icon: 'warning',
+          quick: ['ติดตามหลายครั้งแล้วไม่สำเร็จ', 'ขาดเรียนต่อเนื่อง ติดต่อไม่ได้', 'รอผลการพิจารณาของฝ่ายบริหาร'] }
+        : { title: 'ถอนชื่อนักเรียน', text: st.name + ' จะหยุดการติดตามและเข้าสู่ระบบไม่ได้ ประวัติยังเก็บไว้ครบ', ok: 'ถอนชื่อ', required: true, danger: true, icon: 'warning',
+          quick: ['ย้ายสถานศึกษา', 'ลาออก', 'พ้นสภาพนักเรียน'] });
+    ask.then(function (note) {
+      if (note === null) return;
+      loading('กำลังบันทึกสถานะ');
+      API.call('adminSetStudentStatus', { id: id, status: status, note: note }).then(function (d) {
+        loaded(); haptic();
+        var lst = S.adm.students || [];
+        for (var i = 0; i < lst.length; i++) if (lst[i].id === id) lst[i] = d.student;
+        closeSheet(); render(); S.lastSync = 0; refresh(true);
+        successBox(status === 'ACTIVE' ? 'กลับมาติดตามแล้ว' : (HOLD_LABEL[status] + 'แล้ว'), d.student.name);
+      }).catch(function (e) { loaded(); toast(e.message || 'บันทึกไม่สำเร็จ'); });
+    });
+  }
+  function deleteStudent(id) {
+    var st = (S.adm.students || []).filter(function (x) { return x.id === id; })[0] || { name: id };
+    confirmBox({ title: 'ลบ ' + st.name + ' ถาวร?', text: 'ใช้กับรายชื่อที่กรอกผิดหรือซ้ำเท่านั้น ถ้ามีประวัติ 0 ร มส ระบบจะไม่ให้ลบ', ok: 'ลบถาวร', danger: true }).then(function (ok) {
+      if (!ok) return;
+      loading('กำลังลบ');
+      API.call('adminDeleteStudent', { id: id }).then(function () {
+        loaded(); S.adm.students = (S.adm.students || []).filter(function (x) { return x.id !== id; });
+        closeSheet(); render(); successBox('ลบแล้ว', st.name);
+      }).catch(function (e) { loaded(); toast(e.message || 'ลบไม่สำเร็จ'); });
     });
   }
   function teacherOptions() {
@@ -1337,13 +1426,15 @@
     var list = S.adm.students || [], q = S.aq.trim().toLowerCase();
     var f = list.filter(function (s) {
       if (S.acls !== 'all' && s.classroom !== S.acls) return false;
+      if (S.astat === 'normal' && s.trackStatus) return false;
+      if ((S.astat === 'SUSPENDED' || S.astat === 'WITHDRAWN') && s.trackStatus !== S.astat) return false;
       return !q || (s.name + ' ' + s.id + ' ' + s.classroom).toLowerCase().indexOf(q) >= 0;
     });
     if (!f.length) return '<div class="group"><div class="empty">' + (list.length ? 'ไม่พบนักเรียนตามเงื่อนไขนี้' : 'ยังไม่มีรายชื่อนักเรียน กดนำเข้าจาก Excel เพื่อเริ่ม') + '</div></div>';
     return '<div class="group">' + f.slice(0, 300).map(function (s) {
       return '<button class="row" data-act="adm-stu-edit" data-id="' + esc(s.id) + '">' + avatarHtml(s.id, s.firstName) + '<span class="row-main"><span class="row-t">' + esc(s.name) + '</span>' +
         '<span class="row-s">' + esc(s.classroom) + ' เลขที่ ' + esc(s.number) + ' เลขประจำตัว ' + esc(s.id) + '</span><span class="row-s">' +
-        (s.active ? '' : '<span class="chip ch-bad">ไม่ได้ศึกษาแล้ว</span>') + (s.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '<span class="chip ch-ok">ตั้งรหัสแล้ว</span>') +
+        (s.trackStatus === 'SUSPENDED' ? '<span class="chip ch-hold">แขวนการติดตาม</span>' : (s.trackStatus === 'WITHDRAWN' ? '<span class="chip ch-bad">ถอนชื่อ</span>' : (s.active ? '' : '<span class="chip ch-bad">ปิดบัญชี</span>'))) + (s.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '<span class="chip ch-ok">ตั้งรหัสแล้ว</span>') +
         (s.lineLinked ? '<span class="chip ch-ok">LINE</span>' : '') + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     }).join('') + '</div>' + (f.length > 300 ? '<p class="hint" style="margin-top:8px">แสดง 300 คนแรก ค้นหาเพื่อดูคนอื่น</p>' : '');
   }
@@ -1358,6 +1449,11 @@
     if (!list) return h + loadingHtml() + '</main>';
     if (classes.length > 1) h += '<div class="chips">' + [['all', 'ทุกห้อง']].concat(classes.map(function (c) { return [c, c]; })).map(function (x) {
       return '<button class="fchip" data-act="acls" data-v="' + esc(x[0]) + '" aria-pressed="' + (S.acls === x[0]) + '">' + esc(x[1]) + '</button>';
+    }).join('') + '</div>';
+    var cnt = { SUSPENDED: 0, WITHDRAWN: 0 };
+    list.forEach(function (s) { if (cnt[s.trackStatus] !== undefined) cnt[s.trackStatus]++; });
+    h += '<div class="chips" style="padding-top:6px">' + [['all', 'ทุกสถานะ'], ['normal', 'ติดตามปกติ'], ['SUSPENDED', 'แขวน ' + cnt.SUSPENDED], ['WITHDRAWN', 'ถอนชื่อ ' + cnt.WITHDRAWN]].map(function (x) {
+      return '<button class="fchip" data-act="astat" data-v="' + x[0] + '" aria-pressed="' + ((S.astat || 'all') === x[0]) + '">' + x[1] + '</button>';
     }).join('') + '</div>';
     if (isManager()) h += '<div class="ev-add" style="margin-top:12px"><button class="btn btn-ghost" data-act="adm-stu-new">' + ic('plus', 20) + 'เพิ่มทีละคน</button><button class="btn btn-ghost" data-act="adm-import">' + ic('file', 20) + 'นำเข้าจาก Excel</button></div>';
     else h += '<p class="hint" style="margin:12px 2px 0">แตะชื่อนักเรียนเพื่อรีเซ็ตรหัสผ่านเมื่อนักเรียนลืม</p>';
@@ -1688,6 +1784,9 @@
       case 'adm-subj-edit': subjectForm((S.adm.subjects || []).filter(function (x) { return x.code === id; })[0]); break;
       case 'adm-import': openSheet({ kind: 'import', txt: '' }); break;
       case 'acls': S.acls = v; render(); break;
+      case 'astat': S.astat = v; render(); break;
+      case 'stu-status': setStudentStatus(id, v); break;
+      case 'stu-delete': deleteStudent(id); break;
       case 'form-chip': s.values[el.getAttribute('data-k')] = v; renderSheet(); break;
       case 'form-sw': var fk = el.getAttribute('data-k'); s.values[fk] = !s.values[fk]; renderSheet(); break;
       case 'form-save': saveForm(el); break;
