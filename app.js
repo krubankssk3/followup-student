@@ -559,7 +559,7 @@
       return A.classroom === B.classroom ? (+A.number || 0) - (+B.number || 0) : (A.classroom < B.classroom ? -1 : 1);
     });
     if (!order.length) return '<div class="group"><div class="empty">' + (S.cases.length ? 'ไม่พบนักเรียนตามเงื่อนไขนี้ ลองเลือก ทั้งหมด หรือพิมพ์ชื่อใหม่' : 'ยังไม่มีนักเรียนที่ติด 0 ร มส กดปุ่มบันทึกด้านล่างเพื่อเริ่ม') + '</div></div>';
-    return '<div class="group">' + order.map(function (sid) {
+    return '<div class="group cols">' + order.map(function (sid) {
       var list = groups[sid], s = list[0], open = list.filter(isOpen), late = list.filter(isOverdue).length;
       return '<button class="row" data-act="open-student" data-v="' + esc(sid) + '">' + avatarHtml(sid, s.firstName || s.studentName) + '<span class="row-main"><span class="row-t">' + esc(s.studentName) + '</span>' +
         '<span class="row-s">' + esc(s.classroom) + ' เลขที่ ' + esc(s.number) + '</span><span class="row-s">' + (open.length ? '<span class="chip ch-warn">ค้าง ' + open.length + ' วิชา</span>' : '<span class="chip ch-ok">แก้ครบแล้ว</span>') + (late ? '<span class="chip ch-bad">เลยกำหนด ' + late + '</span>' : '') + '</span></span>' +
@@ -695,10 +695,12 @@
   function navHtml() {
     var un = unread();
     var pend = S.cases.filter(function (c) { return c.status === 'PASSED'; }).length;
-    return '<nav class="nav no-print" aria-label="เมนูหลัก"><div class="nav-in">' + tabsFor(S.user.role).map(function (t) {
+    var src = logoSrc();
+    return '<nav class="nav no-print" aria-label="เมนูหลัก"><div class="nav-brand">' + (src ? '<img src="' + esc(src) + '" alt="">' : '<span class="nb-ic">' + ic('cap', 22) + '</span>') +
+      '<span><b>' + esc(C.APP_NAME || 'ติดตามการแก้ 0 ร มส') + '</b><small>' + esc(setting('schoolName', C.SCHOOL || '')) + '</small></span></div><div class="nav-in">' + tabsFor(S.user.role).map(function (t) {
       var b = t[0] === 'notif' ? un : (t[0] === 'approve' ? pend : 0);
       return '<button data-act="tab" data-v="' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '><span class="pill">' + ic(t[2]) + '</span>' + t[1] + (b ? '<span class="badge">' + b + '</span>' : '') + '</button>';
-    }).join('') + '</div></nav>';
+    }).join('') + '</div><div class="nav-user">' + avatarHtml(S.user.id, S.user.firstName || S.user.displayName) + '<span><b>' + esc(S.user.displayName) + '</b><small>' + roleName(S.user.role) + '</small></span></div></nav>';
   }
   function vTab() {
     var role = S.user.role, tabs = tabsFor(role).map(function (t) { return t[0]; });
@@ -714,6 +716,7 @@
 
   function render() {
     var app = $('app');
+    app.className = 'app' + (S.user && !S.user.mustChangePw ? ' has-nav' : '');
     if (!S.user) { app.innerHTML = vLogin(); return; }
     if (S.user.mustChangePw) { app.innerHTML = vMustChange(); return; }
     var top = S.stack.length ? S.stack[S.stack.length - 1] : null;
@@ -752,6 +755,8 @@
     else if (k === 'report-config') inner = shReportCfg();
     else if (k === 'logo') inner = shLogo();
     else if (k === 'themepick') inner = shTheme();
+    else if (k === 'reset-data') inner = shResetData();
+    else if (k === 'setup-real') inner = shSetupReal();
     else if (k === 'reject') inner = shReject();
     else if (k === 'img') inner = shImg();
     else if (k === 'done') inner = '<div class="done-ic">' + ic(S.sheet.icon || 'check', 44) + '</div><h3 class="done-t">' + esc(S.sheet.title) + '</h3><p class="done-s">' + esc(S.sheet.sub) + '</p>' + (S.sheet.next ? '<ol class="next">' + S.sheet.next.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : '') +
@@ -1049,6 +1054,39 @@
       img.onerror = function () { URL.revokeObjectURL(url); reject({ message: 'เปิดรูปนี้ไม่ได้' }); };
       img.src = url;
     });
+  }
+  var RESET_OPTS = [
+    ['cases', 'รายการ 0 ร มส ทั้งหมด', 'รวมประวัติ ไฟล์หลักฐาน และการแจ้งเตือน (ไฟล์ย้ายไปถังขยะ Drive กู้คืนได้ 30 วัน)'],
+    ['students', 'รายชื่อนักเรียนทั้งหมด', 'รวมการเชื่อม LINE ผู้ปกครอง (ต้องล้างรายการ 0 ร มส ด้วย)'],
+    ['subjects', 'รายวิชาทั้งหมด', ''],
+    ['users', 'ครูและเจ้าหน้าที่', 'ยกเว้นบัญชีผู้ดูแลระบบ (admin) ทุกบัญชี']
+  ];
+  function shResetData() {
+    var s = S.sheet;
+    var h = '<h3 class="sh-t">ล้างข้อมูลทดลอง</h3><p class="sh-s">ใช้ครั้งเดียวก่อนเริ่มใช้งานจริง ระบบจะ<b>สำรอง Google Sheet ทั้งไฟล์</b>ลง Drive ให้อัตโนมัติก่อนล้าง</p>';
+    h += '<div class="group" style="margin-bottom:14px">' + RESET_OPTS.map(function (o) {
+      var on = !!s.opt[o[0]], forced = o[0] === 'cases' && s.opt.students;
+      return '<button class="task' + (on ? ' on' : '') + '" data-act="reset-opt" data-v="' + o[0] + '"' + (forced ? ' disabled' : '') + ' style="text-decoration:none"><span class="box">' + ic('check', 18) + '</span><span><b style="display:block">' + o[1] + '</b>' + (o[2] ? '<small class="t-muted">' + o[2] + '</small>' : '') + '</span></button>';
+    }).join('') + '</div>';
+    h += '<div class="banner ok" style="margin:0 0 14px">' + ic('seal') + '<div><b>ไม่ถูกลบ</b><p>บัญชีผู้ดูแลระบบ การตั้งค่า ปีการศึกษา โลโก้ รูปแบบรายงาน การตั้งค่า LINE และบันทึกการใช้งาน</p></div></div>';
+    h += '<label class="field"><span class="lbl">พิมพ์คำว่า <b class="t-bad">ล้างข้อมูล</b> เพื่อยืนยัน</span><input class="inp" id="resetConfirm" autocomplete="off" value="' + esc(s.confirm) + '"></label>';
+    h += '<button class="btn btn-bad btn-block" data-act="reset-run"' + (s.confirm.trim() === 'ล้างข้อมูล' ? '' : ' disabled') + '>' + ic('refresh', 20) + 'สำรองข้อมูลแล้วล้าง</button>';
+    return h;
+  }
+  function shSetupReal() {
+    var r = S.sheet.result || {};
+    var steps = [
+      ['settings', 'lock', 'ตั้งค่าปีการศึกษาและภาคเรียน', 'ตรวจชื่อโรงเรียน เกณฑ์การแก้ และวันแจ้งเตือน'],
+      ['users', 'users', 'เพิ่มครูและเจ้าหน้าที่', 'ระบบสร้างรหัสชั่วคราวให้แต่ละคน'],
+      ['subjects', 'file', 'เพิ่มรายวิชา', 'รหัสวิชา ระดับชั้น และครูผู้สอน'],
+      ['students', 'user', 'นำเข้านักเรียนจาก Excel', 'คัดลอกวางได้ทั้งโรงเรียนในครั้งเดียว']
+    ];
+    return '<div class="done-ic">' + ic('check', 44) + '</div><h3 class="done-t">ล้างข้อมูลเรียบร้อย</h3>' +
+      '<p class="done-s">ลบรายการ ' + (r.cases || 0) + ' นักเรียน ' + (r.students || 0) + ' รายวิชา ' + (r.subjects || 0) + ' บัญชีครู ' + (r.users || 0) + '</p>' +
+      (r.backup ? '<a class="pub-link" href="' + esc(r.backup.url) + '" target="_blank" rel="noopener" style="margin:0 0 16px">' + ic('file', 20) + 'เปิดไฟล์สำรอง</a>' : '') +
+      '<span class="lbl">เริ่มกรอกข้อมูลจริงตามลำดับนี้</span><div class="group" style="margin-bottom:14px">' + steps.map(function (x, i) {
+        return '<button class="row" data-act="setup-go" data-v="' + x[0] + '"><span class="avatar">' + (i + 1) + '</span><span class="row-main"><span class="row-t">' + x[2] + '</span><span class="row-s">' + x[3] + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
+      }).join('') + '</div><button class="btn btn-ghost btn-block" data-act="close-sheet">ไว้ทีหลัง</button>';
   }
   function shTheme() {
     var T = window.Theme, cur = T ? T.get() : { hex: '#6E4BC9', fx: true };
@@ -1431,7 +1469,7 @@
       return !q || (s.name + ' ' + s.id + ' ' + s.classroom).toLowerCase().indexOf(q) >= 0;
     });
     if (!f.length) return '<div class="group"><div class="empty">' + (list.length ? 'ไม่พบนักเรียนตามเงื่อนไขนี้' : 'ยังไม่มีรายชื่อนักเรียน กดนำเข้าจาก Excel เพื่อเริ่ม') + '</div></div>';
-    return '<div class="group">' + f.slice(0, 300).map(function (s) {
+    return '<div class="group cols">' + f.slice(0, 300).map(function (s) {
       return '<button class="row" data-act="adm-stu-edit" data-id="' + esc(s.id) + '">' + avatarHtml(s.id, s.firstName) + '<span class="row-main"><span class="row-t">' + esc(s.name) + '</span>' +
         '<span class="row-s">' + esc(s.classroom) + ' เลขที่ ' + esc(s.number) + ' เลขประจำตัว ' + esc(s.id) + '</span><span class="row-s">' +
         (s.trackStatus === 'SUSPENDED' ? '<span class="chip ch-hold">แขวนการติดตาม</span>' : (s.trackStatus === 'WITHDRAWN' ? '<span class="chip ch-bad">ถอนชื่อ</span>' : (s.active ? '' : '<span class="chip ch-bad">ปิดบัญชี</span>'))) + (s.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '<span class="chip ch-ok">ตั้งรหัสแล้ว</span>') +
@@ -1483,6 +1521,7 @@
       if (isAdmin()) rows.push(['line', 'chat', 'LINE OA', 'สถานะ โควตาข้อความ Webhook ทดสอบส่ง']);
       if (isAdmin()) rows.push(['logo', 'image', 'โลโก้โรงเรียน', 'อัปโหลดรูปโลโก้ใช้ทั้งระบบ']);
       rows.push(['report', 'printer', 'รูปแบบรายงาน', 'หัวรายงานและผู้ลงนาม']);
+      if (isAdmin()) rows.push(['reset', 'refresh', 'ล้างข้อมูลทดลอง', 'เริ่มใช้งานจริง สำรองข้อมูลให้อัตโนมัติก่อนล้าง']);
       rows.push(['settings', 'lock', 'ตั้งค่าระบบ', isAdmin() ? 'ปีการศึกษา เกณฑ์การแก้ การแจ้งเตือน' : 'ดูเกณฑ์ที่ใช้อยู่']);
     } else if (u.role === 'teacher' && u.advisorClass) {
       rows.push(['students', 'user', 'นักเรียนห้อง ' + u.advisorClass, 'รีเซ็ตรหัสเมื่อนักเรียนลืม']);
@@ -1766,6 +1805,7 @@
         if (v === 'settings') { settingsForm(); break; }
         if (v === 'report') { openSheet({ kind: 'report-config', cfg: reportCfg() }); break; }
         if (v === 'logo') { openSheet({ kind: 'logo' }); break; }
+        if (v === 'reset') { openSheet({ kind: 'reset-data', opt: { cases: true, students: true, subjects: true, users: true }, confirm: '' }); break; }
         if (v === 'line') {
           openSheet({ kind: 'linestatus', data: null });
           API.call('lineStatus').then(function (d) { if (S.sheet && S.sheet.kind === 'linestatus') { S.sheet.data = d; renderSheet(); } })
@@ -1862,6 +1902,31 @@
         break;
 
       case 'theme-open': openSheet({ kind: 'themepick' }); break;
+      case 'reset-opt':
+        s.opt[v] = !s.opt[v];
+        if (v === 'students' && s.opt.students) s.opt.cases = true;
+        renderSheet();
+        break;
+      case 'reset-run':
+        var ro = s.opt, rc = s.confirm.trim();
+        confirmBox({ title: 'ยืนยันล้างข้อมูล?', text: 'ข้อมูลที่เลือกจะถูกลบออกจากระบบ (มีไฟล์สำรองให้ใน Drive)', ok: 'ล้างข้อมูล', danger: true }).then(function (ok) {
+          if (!ok) return;
+          loading('กำลังสำรองและล้างข้อมูล', 'อาจใช้เวลาสักครู่ อย่าปิดหน้านี้');
+          API.call('adminResetData', { confirm: rc, options: ro }).then(function (d) {
+            loaded(); haptic();
+            S.cases = []; S.notifs = []; S.logs = {}; S.ev = {}; S.students = null;
+            S.adm = { users: null, students: null, subjects: null, settings: null };
+            saveCache(); render(); refresh(true);
+            openSheet({ kind: 'setup-real', result: d });
+          }).catch(function (e) { loaded(); toast(e.message || 'ล้างข้อมูลไม่สำเร็จ'); });
+        });
+        break;
+      case 'setup-go':
+        closeSheet();
+        if (S.tab !== 'me') { S.tab = 'me'; resetNav(); }
+        render();
+        setTimeout(function () { var b = document.querySelector('[data-act=adm-open][data-v="' + v + '"]'); if (b) b.click(); }, 0);
+        break;
       case 'theme-pick': if (window.Theme) { window.Theme.set(v); haptic(); renderSheet(); } break;
       case 'theme-fx': if (window.Theme) { window.Theme.setFx(!window.Theme.get().fx); render(); renderSheet(); } break;
       case 'theme-reset': if (window.Theme) { window.Theme.reset(); render(); renderSheet(); } break;
@@ -2000,6 +2065,12 @@
     if (t.id === 'aq') { S.aq = t.value; var al = $('alist'); if (al) al.innerHTML = admStudentRows(); return; }
     if (t.id === 'importTxt' && S.sheet) { S.sheet.txt = t.value; var ip = $('importPrev'); if (ip) ip.innerHTML = importPreview(); return; }
     if (t.id === 'themeColor' && window.Theme) { window.Theme.set(t.value); return; }
+    if (t.id === 'resetConfirm' && S.sheet) {
+      S.sheet.confirm = t.value;
+      var rb = document.querySelector('[data-act=reset-run]');
+      if (rb) rb.disabled = t.value.trim() !== 'ล้างข้อมูล';
+      return;
+    }
     var rk = t.getAttribute('data-rk');
     if (rk && S.sheet && S.sheet.cfg) { S.sheet.cfg[rk] = t.value; return; }
     var ri = t.getAttribute('data-ri');
