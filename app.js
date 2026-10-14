@@ -839,7 +839,35 @@
       '<span><b>' + esc(C.APP_NAME || 'ติดตามการแก้ 0 ร มส') + '</b><small>' + esc(setting('schoolName', C.SCHOOL || '')) + '</small></span></div><div class="nav-in">' + tabsFor(S.user.role).map(function (t) {
       var b = t[0] === 'notif' ? un : (t[0] === 'approve' ? pend : 0);
       return '<button data-act="tab" data-v="' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '><span class="pill">' + ic(t[2]) + '</span>' + t[1] + (b ? '<span class="badge">' + b + '</span>' : '') + '</button>';
-    }).join('') + '</div><div class="nav-user">' + avatarHtml(S.user.id, S.user.firstName || S.user.displayName) + '<span><b>' + esc(S.user.displayName) + '</b><small>' + roleName(S.user.role) + '</small></span></div></nav>';
+    }).join('') + '</div>' + navExtra() + '<div class="nav-user">' + avatarHtml(S.user.id, S.user.firstName || S.user.displayName) + '<span><b>' + esc(S.user.displayName) + '</b><small>' + roleName(S.user.role) + '</small></span></div></nav>';
+  }
+  /* ส่วนเสริมแถบเมนูซ้าย (จอคอม): ทางลัด สรุปย่อ ออกจากระบบ */
+  function navExtra() {
+    var u = S.user, cs = S.cases, links = [];
+    var nxb = function (act, icon, label, extra, attrs) {
+      return '<button class="nx-btn" data-act="' + act + '"' + (attrs || '') + '><span class="nx-ic">' + ic(icon, 18) + '</span><span class="nx-l">' + label + '</span>' + (extra || '') + '</button>';
+    };
+    if (canSearch()) links.push(nxb('pop-search', 'search', 'ค้นหา', '<kbd>Ctrl K</kbd>'));
+    if ((u.role === 'teacher' || u.role === 'admin') && S.subjects.length) links.push(nxb('new-case', 'plus', 'บันทึก 0 ร มส'));
+    if (u.role !== 'student' && !tabsFor(u.role).some(function (t) { return t[0] === 'notif'; })) {
+      var un = unread();
+      links.push(nxb('tab-notif', 'bell', 'การแจ้งเตือน', un ? '<span class="nx-badge">' + un + '</span>' : ''));
+    }
+    links.push(nxb('theme', isDark() ? 'sun' : 'moon', isDark() ? 'โหมดสว่าง' : 'โหมดมืด', '<span class="sw sm' + (isDark() ? ' on' : '') + '"></span>'));
+    links.push(nxb('theme-open', 'palette', 'สีธีมและเอฟเฟค'));
+    links.push(nxb('pw-open', 'lock', 'เปลี่ยนรหัสผ่าน'));
+    links.push('<a class="nx-btn" href="./" target="_blank" rel="noopener"><span class="nx-ic">' + ic('chart', 18) + '</span><span class="nx-l">หน้าสถิติสาธารณะ</span></a>');
+    links.push(nxb('howto', 'phone', S.installEvt ? 'ติดตั้งเป็นแอป' : 'เพิ่มไว้ที่หน้าจอ'));
+
+    var done = cs.filter(function (c) { return c.status === 'APPROVED'; }).length, total = cs.length;
+    var late = cs.filter(isOverdue).length, pct = total ? Math.round(done * 100 / total) : 0;
+    var card = '<div class="nx-card"><div class="nx-ct"><b>' + (u.role === 'student' ? 'ความคืบหน้าของฉัน' : (u.role === 'teacher' ? 'งานของฉัน' : 'ภาพรวมทั้งโรงเรียน')) + '</b><span>' + pct + '%</span></div>' +
+      '<div class="nx-bar"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="nx-cs"><span>แก้เสร็จ ' + done + '/' + total + '</span>' + (late ? '<span class="t-bad">เลยกำหนด ' + late + '</span>' : '<span>ไม่มีเลยกำหนด</span>') + '</div>' +
+      '<button class="nx-sync" data-act="refresh">' + (S.syncing ? '<span class="spin"></span>กำลังโหลด' : ic('refresh', 14) + (S.lastSync ? 'อัปเดต ' + thTime(S.lastSync) + ' น.' : 'โหลดข้อมูล')) + '</button></div>';
+
+    return '<div class="nav-extra"><div class="nx-sec">ทางลัด</div>' + links.join('') + card + '</div>' +
+      '<button class="nx-logout" data-act="logout">' + ic('logout', 18) + 'ออกจากระบบ</button>';
   }
   function vTab() {
     var role = S.user.role, tabs = tabsFor(role).map(function (t) { return t[0]; });
@@ -2310,6 +2338,10 @@
         }).catch(function (err) { el.disabled = false; toast(err.message || 'ส่งแจ้งเตือนไม่สำเร็จ'); });
         break;
 
+      case 'tab-notif':
+        S.pop = null; S.tab = 'home'; resetNav(); window.scrollTo(0, 0); render();
+        setTimeout(function () { S.pop = 'notif'; S.popTab = S.popTab || 'all'; renderMain(); renderPop(); }, 0);
+        break;
       case 'pop-search':
         if (S.pop === 'search') { S.pop = null; renderMain(); renderPop(); } else openSearch();
         break;
