@@ -344,6 +344,7 @@
   function toolsHtml() {
     var un = unread();
     return '<div class="hdr-tools no-print">' +
+      (canSearch() ? '<button class="tb" data-act="pop-search" aria-label="ค้นหา (Ctrl+K)" title="ค้นหา (Ctrl+K)" aria-expanded="' + (S.pop === 'search') + '">' + ic('search', 20) + '</button>' : '') +
       '<button class="tb" data-act="pop-theme" aria-label="ปรับธีม" aria-expanded="' + (S.pop === 'theme') + '">' + ic(isDark() ? 'moon' : 'palette', 20) + '</button>' +
       '<button class="tb' + (un ? ' ring-bell' : '') + '" data-act="pop-notif" aria-label="การแจ้งเตือน ' + un + ' รายการใหม่" aria-expanded="' + (S.pop === 'notif') + '">' + ic('bell', 20) +
         (un ? '<span class="tb-badge">' + (un > 9 ? '9+' : un) + '</span>' : '') + '</button>' +
@@ -383,17 +384,95 @@
       '<button class="toggle" data-act="theme-fx" style="min-height:52px;margin-bottom:8px"><span><b>เอฟเฟคแสงสี</b></span><span class="sw' + (cur.fx ? ' on' : '') + '"></span></button>' +
       (cur.school ? '' : '<button class="btn btn-ghost btn-block" data-act="theme-reset" style="min-height:44px;font-size:14px">ใช้สีของโรงเรียน</button>');
   }
+  /* ---------- ค้นหารวม (นักเรียน + รายการ 0 ร มส) ---------- */
+  var GS_KEY = 'followup_recent_search';
+  function canSearch() { return !!(S.user && S.user.role !== 'student'); }
+  function gsRecent() { try { var r = JSON.parse(localStorage.getItem(GS_KEY) || '[]'); return r instanceof Array ? r.slice(0, 6) : []; } catch (e) { return []; } }
+  function gsRemember(q) {
+    q = String(q || '').trim(); if (q.length < 2) return;
+    var r = gsRecent().filter(function (x) { return x !== q; }); r.unshift(q);
+    try { localStorage.setItem(GS_KEY, JSON.stringify(r.slice(0, 6))); } catch (e) {}
+  }
+  function gsNorm(s) { return String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' '); }
+  function gsHit(text, toks) {
+    var t = gsNorm(text);
+    for (var i = 0; i < toks.length; i++) if (t.indexOf(toks[i]) < 0) return false;
+    return true;
+  }
+  function gsMark(text, toks) {
+    var out = esc(text);
+    toks.forEach(function (k) {
+      var ek = esc(k).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (ek) out = out.replace(new RegExp('(' + ek + ')(?![^<]*>)', 'gi'), '<mark>$1</mark>');
+    });
+    return out;
+  }
+  function gsStudents() {
+    var map = {}, list = [];
+    S.cases.forEach(function (c) {
+      var m = map[c.sid];
+      if (!m) { m = map[c.sid] = { sid: c.sid, name: c.studentName, cls: c.classroom || '', no: c.number || '', open: 0, total: 0, hold: !!c.hold }; list.push(m); }
+      m.total++;
+      if (c.status !== 'APPROVED') m.open++;
+    });
+    (S.students || []).forEach(function (s) {
+      if (map[s.id]) return;
+      map[s.id] = { sid: s.id, name: s.name, cls: s.cls, no: s.no, open: 0, total: 0 }; list.push(map[s.id]);
+    });
+    return list;
+  }
+  function gsResults(q) {
+    var toks = gsNorm(q).trim().split(' ').filter(function (x) { return x; });
+    if (!toks.length) {
+      var rc = gsRecent();
+      return '<div class="gs-hint">' + ic('search', 30) + '<span>พิมพ์ชื่อนักเรียน เลขประจำตัว ห้อง หรือรายวิชา<br><small>ใช้หลายคำได้ เช่น <b>ม.2/1 คณิต</b></small></span></div>' +
+        (rc.length ? '<div class="pop-sec">ค้นหาล่าสุด</div><div class="gs-chips">' + rc.map(function (x) { return '<button class="gs-chip" data-act="gs-q" data-v="' + esc(x) + '">' + ic('clock', 15) + esc(x) + '</button>'; }).join('') +
+          '<button class="gs-chip gs-clear" data-act="gs-clear">ล้าง</button></div>' : '');
+    }
+    var stu = gsStudents().filter(function (s) { return gsHit(s.name + ' ' + s.sid + ' ' + s.cls, toks); })
+      .sort(function (a, b) { return b.open - a.open || (a.cls < b.cls ? -1 : a.cls > b.cls ? 1 : (+a.no || 0) - (+b.no || 0)); });
+    var cs = S.cases.filter(function (c) {
+      return gsHit([c.studentName, c.sid, c.classroom, c.subjectName, c.subject, c.teacherName, c.type, chip(c).replace(/<[^>]+>/g, '')].join(' '), toks);
+    }).sort(byUrg);
+    if (!stu.length && !cs.length) return '<div class="pop-empty">' + ic('search', 36) + '<span>ไม่พบ "' + esc(q.trim()) + '"</span>' + (!S.students ? '<small class="t-muted">กำลังโหลดรายชื่อนักเรียนทั้งหมด</small>' : '') + '</div>';
+    var h = '';
+    if (stu.length) {
+      h += '<div class="pop-sec">นักเรียน <small>' + stu.length + '</small></div>' + stu.slice(0, 6).map(function (s) {
+        var sub = gsMark(s.cls, toks) + (s.no ? ' เลขที่ ' + esc(s.no) : '') + ' · ' + gsMark(s.sid, toks);
+        var tag = s.hold ? '<span class="chip ch-hold">แขวน</span>' : (s.open ? '<span class="chip ch-warn">ค้าง ' + s.open + '</span>' : (s.total ? '<span class="chip ch-ok">แก้ครบ</span>' : ''));
+        return '<button class="pn gs-r" data-act="gs-stu" data-v="' + esc(s.sid) + '">' + avatarHtml(s.sid, s.name) +
+          '<span class="pn-b"><b>' + gsMark(s.name, toks) + '</b><span>' + sub + '</span></span>' + tag + '</button>';
+      }).join('') + (stu.length > 6 ? '<div class="gs-more">และอีก ' + (stu.length - 6) + ' คน พิมพ์ให้เจาะจงขึ้น</div>' : '');
+    }
+    if (cs.length) {
+      h += '<div class="pop-sec">รายการ 0 ร มส <small>' + cs.length + '</small></div>' + cs.slice(0, 8).map(function (c) {
+        return '<button class="pn gs-r" data-act="gs-case" data-id="' + esc(c.id) + '"><span class="gs-stamp">' + typeStamp(c.type) + '</span>' +
+          '<span class="pn-b"><b>' + gsMark(c.subjectName, toks) + ' · ' + gsMark(c.studentName, toks) + '</b><span>' + gsMark(c.classroom || '', toks) + ' · ' + gsMark(c.teacherName || '', toks) + '</span></span>' + chip(c) + '</button>';
+      }).join('') + (cs.length > 8 ? '<div class="gs-more">และอีก ' + (cs.length - 8) + ' รายการ</div>' : '');
+    }
+    return h;
+  }
+  function popSearch() {
+    return '<div class="gs-box">' + ic('search', 20) + '<input id="gsq" type="search" placeholder="ค้นหานักเรียน ห้อง รายวิชา" autocomplete="off" enterkeyhint="search" value="' + esc(S.gsq || '') + '">' +
+      '<kbd class="gs-kbd">Esc</kbd></div><div id="gsres" class="gs-res">' + gsResults(S.gsq || '') + '</div>';
+  }
+  function openSearch() {
+    if (!canSearch()) return;
+    S.pop = 'search'; S.gsq = ''; renderMain(); renderPop(); loadStudents();
+  }
+
   function renderPop() {
     var el = $('pop');
     if (!el) { el = document.createElement('div'); el.id = 'pop'; document.body.appendChild(el); }
     if (!S.pop || !S.user) { el.innerHTML = ''; el.className = ''; return; }
     var btn = document.querySelector('[data-act="pop-' + S.pop + '"]');
-    if (!btn) { S.pop = null; el.innerHTML = ''; return; }
-    var r = btn.getBoundingClientRect(), W = window.innerWidth;
+    if (!btn && S.pop !== 'search') { S.pop = null; el.innerHTML = ''; return; }
+    var W = window.innerWidth, r = btn ? btn.getBoundingClientRect() : { bottom: 6, right: W / 2 + 190, width: 0 };
     var pos = W < 600 ? 'left:10px;right:10px;' : 'right:' + Math.max(10, W - r.right) + 'px;width:380px;';
     el.className = 'pop-on';
     el.innerHTML = '<div class="pop pop-' + S.pop + '" role="dialog" style="top:' + Math.round(r.bottom + 10) + 'px;' + pos + '">' +
-      '<i class="pop-arrow" style="right:' + (W < 600 ? Math.max(14, W - r.right + r.width / 2 - 18) : r.width / 2 - 8) + 'px"></i>' + (S.pop === 'notif' ? popNotif() : popTheme()) + '</div>';
+      '<i class="pop-arrow" style="right:' + (W < 600 ? Math.max(14, W - r.right + r.width / 2 - 18) : r.width / 2 - 8) + 'px"></i>' + (S.pop === 'notif' ? popNotif() : (S.pop === 'search' ? popSearch() : popTheme())) + '</div>';
+    if (S.pop === 'search') { var gi = $('gsq'); if (gi && document.activeElement !== gi) { try { gi.focus(); } catch (e) {} } }
   }
   function heroHeader(title, sub, extra) {
     return '<header class="top hero">' + toolsHtml() + '<div class="top-t"><div class="greet">' + greet() + '</div><div class="top-h" style="font-size:22px">' + title + '</div>' + (sub ? '<div class="top-s">' + sub + '</div>' : '') + (extra || '') + '</div></header>';
@@ -740,7 +819,7 @@
     h += '<button class="row" data-act="pw-open"><span class="nf-ic">' + ic('lock', 20) + '</span><span class="row-main"><span class="row-t">เปลี่ยนรหัสผ่าน</span><span class="row-s">แนะนำให้เปลี่ยนทุกภาคเรียน</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     h += '<button class="row" data-act="line-open"><span class="nf-ic ok">' + ic('chat', 20) + '</span><span class="row-main"><span class="row-t">' + (u.role === 'student' ? 'LINE ผู้ปกครอง' : 'LINE ส่วนตัว') + '</span><span class="row-s">' + (u.lineLinked ? 'รับแจ้งเตือนผ่าน LINE OA โรงเรียน' : (u.role === 'student' ? 'ให้ผู้ปกครองสแกน QR เพื่อรับแจ้งเตือน' : 'รับแจ้งเตือนงานทาง LINE')) + '</span></span>' + (u.lineLinked ? '<span class="chip ch-ok">เชื่อมแล้ว</span>' : '<span class="chip">ยังไม่เชื่อม</span>') + '</button>';
     h += '<button class="row" data-act="theme-open"><span class="nf-ic">' + ic('moon', 20) + '</span><span class="row-main"><span class="row-t">สีธีมและเอฟเฟค</span><span class="row-s">เปลี่ยนสี โหมดมืด เอฟเฟคแสง</span></span><span class="theme-swatch-dot"></span></button>';
-    h += '<button class="row" data-act="howto"><span class="nf-ic">' + ic('phone', 20) + '</span><span class="row-main"><span class="row-t">เพิ่มไว้ที่หน้าจอโทรศัพท์</span><span class="row-s">เปิดได้เหมือนแอป ไม่ต้องพิมพ์ลิงก์</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
+    h += '<button class="row" data-act="howto"><span class="nf-ic">' + ic('phone', 20) + '</span><span class="row-main"><span class="row-t">' + (S.installEvt ? 'ติดตั้งเป็นแอปบนเครื่องนี้' : 'เพิ่มไว้ที่หน้าจอโทรศัพท์') + '</span><span class="row-s">เปิดได้เหมือนแอป ไม่ต้องพิมพ์ลิงก์ เปิดได้แม้เน็ตหลุด</span></span>' + (S.installEvt ? '<span class="chip ch-info">ติดตั้ง</span>' : '<span class="chev">' + ic('chev', 20) + '</span>') + '</button>';
     h += '</div>' + manageSection() + '<button class="btn btn-bad btn-block" data-act="logout" style="margin-top:20px">' + ic('logout', 20) + 'ออกจากระบบ</button>';
     h += '<p class="foot">' + FOOT + '<br>เวอร์ชัน ' + esc(C.VERSION || '') + (S.lastSync ? ' / ข้อมูลล่าสุด ' + thTime(S.lastSync) + ' น.' : '') + '</p></main>';
     return h;
@@ -814,6 +893,7 @@
     else if (k === 'import') inner = shImport();
     else if (k === 'line') inner = shLine();
     else if (k === 'linestatus') inner = shLineStatus();
+    else if (k === 'backup') inner = shBackup();
     else if (k === 'report-config') inner = shReportCfg();
     else if (k === 'logo') inner = shLogo();
     else if (k === 'themepick') inner = shTheme();
@@ -1032,6 +1112,7 @@
     API.call('listStudents').then(function (list) {
       S.students = list; S.studentsAt = now();
       if (S.sheet && S.sheet.kind === 'new') renderSheet();
+      if (S.pop === 'search' && $('gsres')) $('gsres').innerHTML = gsResults(S.gsq || '');
     }).catch(function (e) { toast(e.message || 'โหลดรายชื่อนักเรียนไม่สำเร็จ'); });
   }
 
@@ -1436,6 +1517,33 @@
     h += '<div class="actbar-in"><button class="btn btn-ghost" data-act="copy-text" data-v="' + esc(d.webhook) + '">คัดลอก URL</button><button class="btn btn-ghost" data-act="line-test">ทดสอบส่ง</button></div>';
     h += '<button class="btn btn-primary btn-block" data-act="adm-open" data-v="settings" style="margin-top:10px">ตั้งค่า LINE</button>';
     return h;
+  }
+
+  function shBackup() {
+    var d = S.sheet.data, h = '<h3 class="sh-t">สำรองข้อมูลอัตโนมัติ</h3><p class="sh-s">คัดลอก Google Sheet ทั้งไฟล์ไว้ใน Drive ทุกวันอาทิตย์ ตี 2</p>';
+    if (!d) return h + '<div class="soon"><span class="spin"></span></div>';
+    var on = d.enabled && d.scheduled;
+    h += '<button class="toggle" data-act="bk-toggle" style="margin-bottom:10px"' + (S.sheet.busy ? ' disabled' : '') + '><span><b>สำรองทุกสัปดาห์</b><br><small class="t-muted">' +
+      (on ? 'เปิดอยู่ ครั้งต่อไปวันอาทิตย์ 02:00 น.' : (d.enabled && !d.scheduled ? 'ยังไม่ได้ตั้งเวลา แตะเพื่อเปิดใหม่' : 'ปิดอยู่')) + '</small></span><span class="sw' + (on ? ' on' : '') + '"></span></button>';
+    h += '<div class="group" style="margin-bottom:12px"><dl class="kv"><dt>สำรองล่าสุด</dt><dd>' + (d.last ? thDate(d.last) + ' ' + thTime(d.last) + ' น.' : 'ยังไม่เคย') + '</dd>' +
+      '<dt>เก็บไว้ล่าสุด</dt><dd><span class="bk-keep">' + [4, 8, 12, 26].map(function (n) {
+        return '<button class="chip' + (d.keep === n ? ' ch-info' : '') + '" data-act="bk-keep" data-v="' + n + '">' + n + ' ชุด</button>';
+      }).join('') + '</span></dd></dl></div>';
+    h += '<div class="sec" style="margin-top:4px"><h2>ไฟล์สำรอง ' + d.list.length + '</h2>' + (d.folderUrl ? '<a class="link" href="' + esc(d.folderUrl) + '" target="_blank" rel="noopener">เปิดโฟลเดอร์</a>' : '') + '</div>';
+    h += '<div class="group bk-list">' + (d.list.length ? d.list.map(function (f) {
+      return '<a class="row" href="' + esc(f.url) + '" target="_blank" rel="noopener"><span class="nf-ic ok">' + ic('file', 20) + '</span><span class="row-main"><span class="row-t">' + esc(f.name.replace(/ \d{4}-\d{2}-\d{2} \d{4}$/, '')) + '</span><span class="row-s">' + thDate(f.at) + ' ' + thTime(f.at) + ' น. · ' + ago(f.at) + '</span></span><span class="chev">' + ic('chev', 20) + '</span></a>';
+    }).join('') : '<div class="empty">ยังไม่มีไฟล์สำรอง กดสำรองตอนนี้เพื่อสร้างชุดแรก</div>') + '</div>';
+    h += '<p class="hint" style="margin:10px 2px">กู้คืน: เปิดไฟล์สำรอง แล้วคัดลอกแผ่นงานที่ต้องการกลับไปวางในไฟล์หลัก หรือแจ้งผู้ดูแลระบบ</p>';
+    h += '<button class="btn btn-primary btn-block" data-act="bk-now"' + (S.sheet.busy ? ' disabled' : '') + '>' + (S.sheet.busy === 'now' ? '<span class="spin"></span>กำลังสำรอง' : ic('refresh', 20) + 'สำรองตอนนี้') + '</button>';
+    return h;
+  }
+  function bkCall(action, payload, busy, ok) {
+    var sh = S.sheet; if (!sh || sh.busy) return;
+    sh.busy = busy; renderSheet();
+    API.call(action, payload).then(function (d) {
+      if (S.sheet !== sh) return;
+      sh.busy = null; sh.data = d.info || d; renderSheet(); haptic(); toast(ok);
+    }).catch(function (err) { if (S.sheet === sh) { sh.busy = null; renderSheet(); } toast(err.message || 'ทำรายการไม่สำเร็จ'); });
   }
 
   /* ---------- admin ---------- */
@@ -1865,6 +1973,7 @@
       if (isAdmin()) rows.push(['line', 'chat', 'LINE OA', 'สถานะ โควตาข้อความ Webhook ทดสอบส่ง']);
       if (isAdmin()) rows.push(['logo', 'image', 'โลโก้โรงเรียน', 'อัปโหลดรูปโลโก้ใช้ทั้งระบบ']);
       rows.push(['report', 'printer', 'รูปแบบรายงาน', 'หัวรายงานและผู้ลงนาม']);
+      if (isAdmin()) rows.push(['backup', 'calendar', 'สำรองข้อมูลอัตโนมัติ', 'สำรอง Google Sheet ทุกวันอาทิตย์ กู้คืนได้จาก Drive']);
       if (isAdmin()) rows.push(['reset', 'refresh', 'ล้างข้อมูลทดลอง', 'เริ่มใช้งานจริง สำรองข้อมูลให้อัตโนมัติก่อนล้าง']);
       rows.push(['settings', 'lock', 'ตั้งค่าระบบ', isAdmin() ? 'ปีการศึกษา เกณฑ์การแก้ การแจ้งเตือน' : 'ดูเกณฑ์ที่ใช้อยู่']);
     } else if (u.role === 'teacher' && u.advisorClass) {
@@ -2088,7 +2197,13 @@
         confirmBox({ title: 'ออกจากระบบ?', text: 'ข้อมูลที่เก็บไว้ในเครื่องนี้จะถูกล้าง', ok: 'ออกจากระบบ', danger: true }).then(function (ok) { if (ok) logout(); });
         break;
       case 'pw-open': openSheet({ kind: 'pw' }); break;
-      case 'howto': openSheet({ kind: 'howto' }); break;
+      case 'howto':
+        if (S.installEvt) {
+          var ie = S.installEvt; S.installEvt = null;
+          ie.prompt();
+          if (ie.userChoice) ie.userChoice.then(function (r) { if (r && r.outcome === 'accepted') toast('ติดตั้งแอปแล้ว เปิดได้จากหน้าจอโทรศัพท์'); render(); });
+        } else openSheet({ kind: 'howto' });
+        break;
       case 'theme':
         var nt = isDark() ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', nt);
@@ -2134,6 +2249,21 @@
         }).catch(function (err) { el.disabled = false; toast(err.message || 'ส่งแจ้งเตือนไม่สำเร็จ'); });
         break;
 
+      case 'pop-search':
+        if (S.pop === 'search') { S.pop = null; renderMain(); renderPop(); } else openSearch();
+        break;
+      case 'gs-q': S.gsq = v; var gq = $('gsq'); if (gq) { gq.value = v; gq.focus(); } $('gsres').innerHTML = gsResults(v); break;
+      case 'gs-clear': try { localStorage.removeItem(GS_KEY); } catch (err) {} $('gsres').innerHTML = gsResults(''); break;
+      case 'gs-case': gsRemember(S.gsq); S.pop = null; push({ v: 'case', id: id }); break;
+      case 'gs-stu':
+        gsRemember(S.gsq); S.pop = null;
+        if (S.cases.some(function (x) { return x.sid === v; })) push({ v: 'student', sid: v });
+        else if (S.subjects.length) {
+          render();
+          openSheet({ kind: 'new', sid: v, subj: null, type: '0', ms: '', cause: '', tasks: TASKS['0'].join('\n'), tasksEdited: false, due: ymd(now() + (+setting('defaultDays', 14)) * DAY), sq: '' });
+          loadStudents();
+        } else { render(); toast('นักเรียนคนนี้ยังไม่มีรายการ 0 ร มส', 'info'); }
+        break;
       case 'pop-notif': case 'pop-theme':
         var which = a.slice(4); S.pop = S.pop === which ? null : which; S.popTab = S.popTab || 'all'; renderMain(); renderPop();
         break;
@@ -2182,6 +2312,12 @@
         if (v === 'settings') { settingsForm(); break; }
         if (v === 'report') { loadSigs(); openSheet({ kind: 'report-config', cfg: reportCfg() }); break; }
         if (v === 'logo') { openSheet({ kind: 'logo' }); break; }
+        if (v === 'backup') {
+          openSheet({ kind: 'backup', data: null });
+          API.call('adminBackupInfo').then(function (d) { if (S.sheet && S.sheet.kind === 'backup') { S.sheet.data = d; renderSheet(); } })
+            .catch(function (err) { closeSheet(); toast(err.message || 'โหลดข้อมูลการสำรองไม่สำเร็จ'); });
+          break;
+        }
         if (v === 'reset') { openSheet({ kind: 'reset-data', opt: { cases: true, students: true, subjects: true, users: true }, confirm: '' }); break; }
         if (v === 'line') {
           openSheet({ kind: 'linestatus', data: null });
@@ -2193,6 +2329,13 @@
         push({ v: 'adm-' + v }); loadAdm(v, true);
         if (v === 'subjects') loadAdm('users');
         break;
+      case 'bk-toggle':
+        if (!s || !s.data) break;
+        var bon = !(s.data.enabled && s.data.scheduled);
+        bkCall('adminBackupSet', { enabled: bon }, 'set', bon ? 'เปิดสำรองข้อมูลทุกสัปดาห์แล้ว' : 'ปิดสำรองข้อมูลอัตโนมัติแล้ว');
+        break;
+      case 'bk-keep': if (s && s.data) bkCall('adminBackupSet', { enabled: s.data.enabled, keep: +v }, 'set', 'เก็บไฟล์สำรองล่าสุด ' + v + ' ชุด'); break;
+      case 'bk-now': bkCall('adminBackupNow', {}, 'now', 'สำรองข้อมูลเรียบร้อย'); break;
       case 'adm-user-new': userForm(null); break;
       case 'adm-user-edit': userForm((S.adm.users || []).filter(function (x) { return x.id === id; })[0]); break;
       case 'adm-stu-new': studentForm(null); break;
@@ -2484,6 +2627,7 @@
 
   document.addEventListener('input', function (e) {
     var t = e.target;
+    if (t.id === 'gsq') { S.gsq = t.value; var gr = $('gsres'); if (gr) gr.innerHTML = gsResults(t.value); return; }
     if (t.id === 'q') { S.q = t.value; var sl = $('slist'); if (sl) sl.innerHTML = studentListHtml(); return; }
     if (t.id === 'sq' && S.sheet) { S.sheet.sq = t.value; $('sres').innerHTML = stuResults(t.value); return; }
     if (t.id === 'aq') { S.aq = t.value; var al = $('alist'); if (al) al.innerHTML = admStudentRows(); return; }
@@ -2533,6 +2677,23 @@
     else if (id === 'mustForm' || id === 'pwForm') { e.preventDefault(); doChangePw(e.target); }
   });
   document.addEventListener('keydown', function (e) {
+    var tg = e.target, typing = tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.isContentEditable);
+    if (((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) || (e.key === '/' && !typing && !S.sheet)) {
+      if (canSearch() && !(S.user && S.user.mustChangePw)) { e.preventDefault(); if (S.pop !== 'search') openSearch(); }
+      return;
+    }
+    if (tg && tg.id === 'gsq' && (e.key === 'Enter' || e.key === 'ArrowDown')) {
+      var first = document.querySelector('#gsres .gs-r');
+      if (first) { e.preventDefault(); if (e.key === 'Enter') first.click(); else first.focus(); }
+      return;
+    }
+    if (tg && tg.classList && tg.classList.contains('gs-r') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      var all = [].slice.call(document.querySelectorAll('#gsres .gs-r')), i = all.indexOf(tg);
+      e.preventDefault();
+      if (e.key === 'ArrowDown' && all[i + 1]) all[i + 1].focus();
+      else if (e.key === 'ArrowUp') { if (i > 0) all[i - 1].focus(); else { var gi = $('gsq'); if (gi) gi.focus(); } }
+      return;
+    }
     if (e.key !== 'Escape') return;
     if (S.pop) { S.pop = null; renderMain(); renderPop(); return; }
     if (S.sheet) closeSheet();
@@ -2551,6 +2712,9 @@
     } else if (!on && bar) bar.parentNode.removeChild(bar);
   }
   window.addEventListener('offline', function () { offlineBar(true); });
+  // ปุ่มติดตั้งแอป (Android/Chrome/Edge): เก็บไว้ใช้ตอนกด "เพิ่มไว้ที่หน้าจอโทรศัพท์"
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); S.installEvt = e; if (S.user && S.tab === 'me' && !S.stack.length) renderMain(); });
+  window.addEventListener('appinstalled', function () { S.installEvt = null; });
   window.addEventListener('online', function () { offlineBar(false); if (S.user) refresh(true); });
 
   API.onExpired = function () {
