@@ -717,3 +717,15 @@ html.fx .fab{position:fixed}
 .mg-act{display:flex;flex-wrap:wrap;gap:8px}
 .mg-act .btn{flex:1 1 auto;min-height:44px;font-size:14px;padding:0 12px}
 @media (max-width:420px){.nav button{font-size:11px}.nav .pill{width:46px}}
+
+/* ===== v1.0: ฉลอง ลายเซ็น ===== */
+.confetti{position:fixed;inset:0;z-index:2100;pointer-events:none}
+.sig-btn{display:inline-flex;align-items:center;gap:8px;margin-top:2px;padding:6px 10px;border-radius:10px;border:1px dashed var(--brand);background:var(--brand-soft);color:var(--brand);font-size:13px;font-weight:600;cursor:pointer}
+.sig-btn img{height:26px;max-width:90px;object-fit:contain;background:#fff;border-radius:6px;padding:1px 4px}
+.sig-prev{height:150px;border-radius:18px;border:1.5px dashed var(--line);background:#fff;display:grid;place-items:center;margin-bottom:12px}
+.sig-prev img{max-height:120px;max-width:90%}
+.sig-pad-wrap{position:relative;border-radius:18px;background:#fff;border:1.5px solid var(--line);overflow:hidden}
+.sig-pad{display:block;width:100%;height:200px;touch-action:none;cursor:crosshair}
+.sig-line{position:absolute;left:24px;right:24px;bottom:46px;border-top:1.5px dashed #C9CCDA;font-size:11px;color:#9AA0B8;padding-top:4px;pointer-events:none}
+.p-sign .sig{position:relative;padding-top:6px}
+.p-sign .sig-img{display:block;height:52px;max-width:170px;object-fit:contain;margin:0 auto -34px;position:relative;z-index:1;transform:translateX(22px)}
