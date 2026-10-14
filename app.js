@@ -1,4 +1,4 @@
-/* app.js : Step 7 (ปรับโฉม, SweetAlert2, โลโก้, รูปแบบรายงาน)
+/* app.js : v1.0 (ปรับโฉม, SweetAlert2, โลโก้, รูปแบบรายงาน, สีโรงเรียน, ฉลอง, Excel, ลายเซ็นดิจิทัล)
  * - นักเรียน: หน้าหลัก รายวิชาที่ต้องแก้ รับทราบ ติ๊กสิ่งที่ทำแล้ว ข้อความถึงครู
  * - ครู: งานของฉัน รายชื่อนักเรียน บันทึก 0 ร มส เลื่อนกำหนด แจ้งเตือนนักเรียน
  * - งานวัดผล: ภาพรวม รายงานรายห้องและพิมพ์รายบุคคล
@@ -573,7 +573,7 @@
     if (u.role === 'teacher') f.push(['mine', 'วิชาที่ฉันสอน']);
     if (u.advisorClass) f.push(['adv', 'ห้องที่ปรึกษา ' + u.advisorClass]);
     f = f.concat([['late', 'เลยกำหนด'], ['review', 'รอตรวจ'], ['hold', 'แขวน/ถอนชื่อ'], ['0', 'ติด 0'], ['ร', 'ติด ร'], ['มส', 'ติด มส'], ['m1', 'ม.1'], ['m2', 'ม.2'], ['m3', 'ม.3']]);
-    var h = '<header class="top col"><div style="display:flex;align-items:center;gap:10px"><div class="top-h" style="flex:1">นักเรียน</div>' + refreshBtn('') + '</div><label class="search">' + ic('search', 20) + '<input id="q" type="search" placeholder="ค้นหาชื่อ เลขประจำตัว ห้อง หรือวิชา" value="' + esc(S.q) + '" aria-label="ค้นหานักเรียน"></label></header>';
+    var h = '<header class="top col"><div style="display:flex;align-items:center;gap:10px"><div class="top-h" style="flex:1">' + (u.role === 'teacher' ? 'นักเรียน' : 'ติดตามนักเรียน') + '</div><button class="ib" style="width:auto;padding:0 12px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px" data-act="export-xlsx" data-v="filter" aria-label="ส่งออก Excel">' + ic('file', 18) + 'Excel</button>' + refreshBtn('') + '</div><label class="search">' + ic('search', 20) + '<input id="q" type="search" placeholder="ค้นหาชื่อ เลขประจำตัว ห้อง หรือวิชา" value="' + esc(S.q) + '" aria-label="ค้นหานักเรียน"></label></header>';
     h += '<main class="main" style="padding-top:4px"><div class="chips" role="group" aria-label="ตัวกรอง">' + f.map(function (x) {
       return '<button class="fchip" data-act="filter" data-v="' + esc(x[0]) + '" aria-pressed="' + (S.filter === x[0]) + '">' + esc(x[1]) + '</button>';
     }).join('') + '</div><div id="slist" style="margin-top:14px">' + (S.loaded ? studentListHtml() : loadingHtml()) + '</div></main>';
@@ -631,7 +631,7 @@
   function vReportTab() {
     var cs = S.cases, classes = classesOf(cs);
     if (!S.cls || classes.indexOf(S.cls) < 0) S.cls = classes[0] || null;
-    var h = header('รายงาน', term(), refreshBtn(''));
+    var h = header('รายงาน', term(), '<button class="ib" style="width:auto;padding:0 12px;font-size:14px;font-weight:600;gap:6px;display:flex;align-items:center" data-act="export-xlsx">' + ic('file', 18) + 'Excel</button>' + refreshBtn(''));
     h += '<main class="main">';
     if (!S.loaded) return h + loadingHtml() + '</main>';
     if (!classes.length) return h + '<div class="group"><div class="soon">' + ic('printer', 32) + '<b>ยังไม่มีข้อมูลสำหรับรายงาน</b><span>เมื่อครูบันทึกนักเรียนที่ติด 0 ร มส แล้วรายงานจะขึ้นที่นี่</span></div></div></main>';
@@ -759,6 +759,7 @@
     else if (k === 'logo') inner = shLogo();
     else if (k === 'themepick') inner = shTheme();
     else if (k === 'reset-data') inner = shResetData();
+    else if (k === 'sig') inner = shSig();
     else if (k === 'setup-real') inner = shSetupReal();
     else if (k === 'reject') inner = shReject();
     else if (k === 'img') inner = shImg();
@@ -767,6 +768,7 @@
     el.innerHTML = '<div class="sheet-bg" data-act="close-sheet"><div class="sheet" data-act="noop" role="dialog" aria-modal="true"><div class="grab"></div>' + inner + '</div></div>';
     document.body.style.overflow = 'hidden';
     if (k === 'line' && S.sheet.code) drawQR();
+    if (k === 'sig' && S.sheet.mode === 'draw') initSigPad();
   }
 
   function gradeOptions(cap) {
@@ -895,6 +897,25 @@
       processLogo(f).then(function (d) { S.sheet.newData = d; renderSheet(); }).catch(function (e) { toast(e.message); });
     });
     document.body.appendChild(lg);
+    var sg = document.createElement('input');
+    sg.type = 'file'; sg.id = 'fSig'; sg.accept = 'image/*'; sg.hidden = true;
+    sg.addEventListener('change', function () {
+      var f = sg.files && sg.files[0];
+      if (!f || !S.sheet || S.sheet.kind !== 'sig') return;
+      var url = URL.createObjectURL(f), im = new Image();
+      im.onload = function () {
+        var k = Math.min(1, 1000 / Math.max(im.naturalWidth, im.naturalHeight)), cv = document.createElement('canvas');
+        cv.width = Math.round(im.naturalWidth * k); cv.height = Math.round(im.naturalHeight * k);
+        cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(url);
+        var out = trimSignature(cv, true, 140);
+        if (!out) { toast('หาลายเซ็นในรูปไม่เจอ ลองถ่ายบนกระดาษขาวให้ชัดขึ้น'); return; }
+        S.sheet.data = out; renderSheet();
+      };
+      im.onerror = function () { toast('เปิดรูปไม่ได้'); };
+      im.src = url;
+    });
+    document.body.appendChild(sg);
   }
 
   function subjectsFor(sid) {
@@ -1000,10 +1021,10 @@
         return;
       }
       var name = g.auto === 'student' ? s.studentName : (g.auto === 'parent' ? s.parentName : (g.auto === 'advisor' ? s.advisorName : g.name));
-      sigs.push({ name: name || '', role: g.label });
+      sigs.push({ name: name || '', role: g.label, img: !g.auto && cfg.printSig !== false && g.id ? (S.sigs || {})[g.id] : '' });
     });
     h += '<div class="p-sign">' + sigs.map(function (g) {
-      return '<div class="sig">ลงชื่อ ' + dots + '<br>(' + esc(g.name || dots) + ')<br><span class="role">' + esc(g.role) + '</span></div>';
+      return '<div class="sig">' + (g.img ? '<img class="sig-img" src="' + esc(g.img) + '" alt="">' : '') + 'ลงชื่อ ' + dots + '<br>(' + esc(g.name || dots) + ')<br><span class="role">' + esc(g.role) + '</span></div>';
     }).join('') + '</div>';
     h += '<div class="p-give">วันที่ ' + d.getDate() + ' ' + TH_FULL[d.getMonth()] + ' พ.ศ. ' + (d.getFullYear() + 543) + '</div></div>';
     return h;
@@ -1024,11 +1045,13 @@
     h += '<label class="field"><span class="lbl">ชื่อรายงาน</span><input class="inp" data-rk="title" value="' + esc(c.title) + '"></label>';
     h += '<button class="toggle" data-act="rc-remark" style="margin-bottom:10px"><span><b>ช่องความเห็น</b><small>เว้นบรรทัดให้เขียนความเห็นก่อนลงนาม</small></span><span class="sw' + (c.remark ? ' on' : '') + '"></span></button>';
     if (c.remark) h += '<label class="field"><span class="lbl">หัวข้อช่องความเห็น</span><input class="inp" data-rk="remarkLabel" value="' + esc(c.remarkLabel || '') + '" placeholder="ความเห็นครูที่ปรึกษา"></label>';
+    h += '<button class="toggle" data-act="rc-printsig" style="margin-bottom:12px"><span><b>พิมพ์ลายเซ็นดิจิทัล</b><small>แสดงลายเซ็นที่บันทึกไว้บนรายงาน ปิดเมื่อต้องการเซ็นด้วยมือ</small></span><span class="sw' + (c.printSig === false ? '' : ' on') + '"></span></button>';
     h += '<span class="lbl">ผู้ลงนาม (เรียงตามลำดับในรายงาน)</span><div class="group" style="padding:0 14px;margin-bottom:12px">';
     c.signers.forEach(function (g, i) {
       h += '<div class="sg-row' + (g.on === false ? ' off' : '') + '"><button class="sw' + (g.on === false ? '' : ' on') + '" data-act="rc-toggle" data-i="' + i + '" aria-label="แสดงผู้ลงนามนี้" style="border:0;margin-top:6px"></button>' +
         '<div class="sg-main"><input class="inp" data-ri="' + i + '" data-rf="label" value="' + esc(g.label) + '" placeholder="ตำแหน่ง เช่น ผู้อำนวยการ">' +
-        (g.auto ? '<div class="sg-auto">' + AUTO_LABEL[g.auto] + '</div>' : '<input class="inp" data-ri="' + i + '" data-rf="name" value="' + esc(g.name || '') + '" placeholder="ชื่อ-สกุล (เว้นว่างให้เขียนด้วยมือ)">') + '</div>' +
+        (g.auto ? '<div class="sg-auto">' + AUTO_LABEL[g.auto] + '</div>' : '<input class="inp" data-ri="' + i + '" data-rf="name" value="' + esc(g.name || '') + '" placeholder="ชื่อ-สกุล (เว้นว่างให้เขียนด้วยมือ)">' +
+          (g.id ? '<button type="button" class="sig-btn" data-act="sig-open" data-i="' + i + '">' + ((S.sigs || {})[g.id] ? '<img src="' + esc(S.sigs[g.id]) + '" alt=""><span>แก้ลายเซ็น</span>' : ic('send', 16) + '<span>เพิ่มลายเซ็นดิจิทัล</span>') + '</button>' : '')) + '</div>' +
         '<div class="sg-tools"><button data-act="rc-up" data-i="' + i + '" aria-label="เลื่อนขึ้น">▲</button><button data-act="rc-down" data-i="' + i + '" aria-label="เลื่อนลง">▼</button>' +
         (g.auto ? '' : '<button data-act="rc-del" data-i="' + i + '" aria-label="ลบ" style="color:var(--zero)">✕</button>') + '</div></div>';
     });
@@ -1103,7 +1126,7 @@
       '<label class="color-row"><input type="color" id="themeColor" value="' + esc(cur.hex) + '"><span><b>เลือกสีเอง</b><br><small class="t-muted">' + (known ? 'แตะเพื่อเลือกสีใดก็ได้' : 'กำลังใช้ ' + esc(cur.hex.toUpperCase())) + '</small></span></label>' +
       '<button class="toggle" data-act="theme-fx" style="margin-bottom:10px"><span><b>เอฟเฟคแสงสี</b><small>แสงเรือง เฟด และประกายวิ่ง ปิดได้ถ้าเครื่องช้า</small></span><span class="sw' + (cur.fx ? ' on' : '') + '"></span></button>' +
       '<button class="toggle" data-act="theme" style="margin-bottom:14px"><span><b>โหมดมืด</b><small>ถนอมสายตาตอนกลางคืน</small></span><span class="sw' + (isDark() ? ' on' : '') + '"></span></button>' +
-      '<div class="actbar-in"><button class="btn btn-ghost" data-act="theme-reset">ค่าเริ่มต้น</button><button class="btn btn-primary" data-act="close-sheet">เสร็จแล้ว</button></div>';
+      '<div class="actbar-in"><button class="btn btn-ghost" data-act="theme-reset">ใช้สีของโรงเรียน</button><button class="btn btn-primary" data-act="close-sheet">เสร็จแล้ว</button></div>';
   }
   function shLogo() {
     var s = S.sheet, src = s.newData !== undefined ? s.newData : logoSrc();
@@ -1111,6 +1134,183 @@
       '<div class="logo-prev">' + (src ? '<img src="' + esc(src) + '" alt="โลโก้">' : ic('image', 40)) + '</div>' +
       '<div class="ev-add" style="margin-top:0"><button class="btn btn-ghost" data-act="logo-pick">' + ic('image', 20) + 'เลือกรูป</button><button class="btn btn-ghost" data-act="logo-remove">ใช้รูปเริ่มต้น</button></div>' +
       '<button class="btn btn-primary btn-block" data-act="logo-save" style="margin-top:12px"' + (s.newData === undefined ? ' disabled' : '') + '>บันทึกโลโก้</button>';
+  }
+
+  /* ---------- เอฟเฟคฉลอง (กระดาษสีโปรย) ---------- */
+  function confetti(ms) {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+    var cv = document.createElement('canvas'), g = cv.getContext && cv.getContext('2d');
+    if (!g) return;
+    cv.className = 'confetti';
+    var W = cv.width = window.innerWidth, H = cv.height = window.innerHeight;
+    document.body.appendChild(cv);
+    var css = getComputedStyle(document.documentElement);
+    var colors = [css.getPropertyValue('--brand').trim() || '#6E4BC9', '#FFD43B', '#00E5FF', '#FF6B9A', '#51CF66', '#FF922B', '#B46CFF'];
+    var P = [], i;
+    for (i = 0; i < 160; i++) {
+      P.push({ x: W / 2 + (Math.random() - 0.5) * W * 0.3, y: H * 0.35, vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 15 - 5,
+        w: 6 + Math.random() * 6, h: 8 + Math.random() * 8, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, c: colors[i % colors.length] });
+    }
+    var t0 = Date.now(), dur = ms || 2800;
+    (function frame() {
+      var t = Date.now() - t0;
+      g.clearRect(0, 0, W, H);
+      g.globalAlpha = t > dur - 600 ? Math.max(0, (dur - t) / 600) : 1;
+      P.forEach(function (p) {
+        p.vy += 0.38; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c;
+        g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2))); g.restore();
+      });
+      if (t < dur) requestAnimationFrame(frame); else if (cv.parentNode) cv.parentNode.removeChild(cv);
+    })();
+  }
+  function celebrate(title, sub) {
+    haptic();
+    try { if (navigator.vibrate) navigator.vibrate([20, 60, 20]); } catch (e) {}
+    confetti();
+    if (hasSwal()) swalFire({ icon: 'success', title: title, html: '<div style="font-size:15px">' + esc(sub || '') + '</div>', timer: 3600, timerProgressBar: true, showConfirmButton: false, customClass: { popup: 'sw-pop' } });
+    else toast(title);
+  }
+  /** นักเรียน: ฉลองเมื่อมีวิชาที่เพิ่งได้รับอนุมัติ (จำว่าฉลองไปแล้ว ไม่ซ้ำ) */
+  function checkCelebrate() {
+    if (!S.user || S.user.role !== 'student') return;
+    var key = 'followup_seen_ok_' + S.user.id, seen = null;
+    try { seen = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+    var ok = S.cases.filter(function (c) { return c.status === 'APPROVED'; }).map(function (c) { return c.id; });
+    var fresh = seen ? ok.filter(function (id) { return seen.indexOf(id) < 0; }) : [];
+    try { localStorage.setItem(key, JSON.stringify(ok)); } catch (e) {}
+    if (!fresh.length) return;
+    var c = caseById(fresh[0]);
+    setTimeout(function () {
+      celebrate('ยินดีด้วย แก้ผ่านแล้ว!', fresh.length > 1 ? 'ได้รับอนุมัติ ' + fresh.length + ' วิชา' : c.subjectName + ' ได้ระดับผลการเรียน ' + c.grade);
+    }, 500);
+  }
+
+  /* ---------- ส่งออก Excel ---------- */
+  var ST_TH = { OPEN: 'รอรับทราบ', DOING: 'กำลังแก้', SUBMITTED: 'รอครูตรวจ', PASSED: 'รออนุมัติ', APPROVED: 'แก้เสร็จ', REPEAT: 'เรียนซ้ำ', HOLD: 'แขวนการติดตาม' };
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var sc = document.createElement('script');
+      sc.src = src; sc.onload = resolve; sc.onerror = reject;
+      document.head.appendChild(sc);
+    });
+  }
+  function exportRows(cs) {
+    var head = ['ที่', 'เลขประจำตัว', 'ชื่อ-สกุล', 'ชั้น', 'เลขที่', 'รหัสวิชา', 'รายวิชา', 'ผลเดิม', 'ครั้งที่แก้', 'สถานะ', 'ผลหลังแก้', 'ครูผู้สอน', 'กำหนดส่ง', 'สาเหตุ'];
+    var rows = cs.slice().sort(function (a, b) {
+      return a.classroom === b.classroom ? ((+a.number || 0) - (+b.number || 0) || (a.subject < b.subject ? -1 : 1)) : (a.classroom < b.classroom ? -1 : 1);
+    }).map(function (c, i) {
+      return [i + 1, c.sid, c.studentName, c.classroom, +c.number || '', c.subject, c.subjectName, c.type, c.attempt, ST_TH[c.status] || c.status,
+        c.status === 'APPROVED' ? c.grade : '', c.teacherName, c.due ? thDate(c.due) : '', c.cause || ''];
+    });
+    return [head].concat(rows);
+  }
+  function summaryRows(cs, keyFn, label) {
+    var g = {}, order = [];
+    cs.forEach(function (c) {
+      var k = keyFn(c);
+      if (!g[k]) { g[k] = { '0': 0, 'ร': 0, 'มส': 0, done: 0, hold: 0, repeat: 0, total: 0 }; order.push(k); }
+      var x = g[k]; x.total++;
+      if (c.status === 'APPROVED') x.done++; else if (c.status === 'HOLD') x.hold++; else if (c.status === 'REPEAT') x.repeat++; else if (x[c.type] !== undefined) x[c.type]++;
+    });
+    order.sort();
+    var out = [[label, 'ค้าง 0', 'ค้าง ร', 'ค้าง มส', 'แก้เสร็จ', 'เรียนซ้ำ', 'แขวน', 'ทั้งหมด', 'ร้อยละแก้เสร็จ']];
+    order.forEach(function (k) { var x = g[k]; out.push([k, x['0'], x['ร'], x['มส'], x.done, x.repeat, x.hold, x.total, x.total ? Math.round(x.done * 1000 / x.total) / 10 : 0]); });
+    return out;
+  }
+  function exportExcel(scopeCases, label) {
+    var cs = scopeCases || S.cases;
+    if (!cs.length) { toast('ยังไม่มีข้อมูลให้ส่งออก'); return; }
+    var name = 'ติดตามแก้0รมส_' + (label ? label.replace(/[\\/:*?"<>|\s]/g, '-') + '_' : '') + (setting('academicYear', '') + '-' + setting('semester', '')) + '.xlsx';
+    loading('กำลังสร้างไฟล์ Excel', cs.length + ' รายการ');
+    var go = function () {
+      var X = window.XLSX, wb = X.utils.book_new();
+      var add = function (rows, title, widths) {
+        var ws = X.utils.aoa_to_sheet(rows);
+        ws['!cols'] = widths.map(function (w) { return { wch: w }; });
+        X.utils.book_append_sheet(wb, ws, title);
+      };
+      add(exportRows(cs), 'รายการทั้งหมด', [5, 12, 26, 8, 6, 10, 22, 7, 9, 13, 9, 24, 12, 30]);
+      add(summaryRows(cs, function (c) { return c.classroom || '-'; }, 'ห้อง'), 'สรุปรายห้อง', [10, 8, 8, 8, 9, 9, 8, 9, 14]);
+      add(summaryRows(cs, function (c) { return c.subject + ' ' + c.subjectName; }, 'รายวิชา'), 'สรุปรายวิชา', [28, 8, 8, 8, 9, 9, 8, 9, 14]);
+      add(summaryRows(cs, function (c) { return c.teacherName || '-'; }, 'ครูผู้สอน'), 'สรุปรายครู', [26, 8, 8, 8, 9, 9, 8, 9, 14]);
+      X.writeFile(wb, name);
+      loaded(); successBox('ส่งออก Excel แล้ว', name);
+    };
+    if (window.XLSX) { go(); return; }
+    loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').then(go).catch(function () {
+      // สำรอง: CSV (เปิดใน Excel ได้ ภาษาไทยไม่เพี้ยน)
+      var csv = exportRows(cs).map(function (r) { return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+      a.download = name.replace('.xlsx', '.csv'); document.body.appendChild(a); a.click(); a.parentNode.removeChild(a);
+      loaded(); toast('ส่งออกเป็นไฟล์ CSV แล้ว (เปิดด้วย Excel ได้)');
+    });
+  }
+
+  /* ---------- ลายเซ็นดิจิทัล ---------- */
+  var SIG_KEY = 'followup_sigs';
+  (function () { try { var x = JSON.parse(localStorage.getItem(SIG_KEY) || 'null'); if (x) { S.sigs = x.sigs || {}; S.sigVer = x.ver || ''; } } catch (e) {} })();
+  function loadSigs(force) {
+    if (!S.user || S.user.role === 'student') return;
+    var want = String(setting('sigVer', '') || '');
+    if (!force && S.sigs && want === String(S.sigVer || '')) return;
+    API.call('getSignatures').then(function (d) {
+      S.sigs = d.sigs || {}; S.sigVer = d.ver || '';
+      try { localStorage.setItem(SIG_KEY, JSON.stringify({ sigs: S.sigs, ver: S.sigVer })); } catch (e) {}
+      render(); if (S.sheet && S.sheet.kind === 'report-config') renderSheet();
+    }).catch(function () {});
+  }
+  /** ตัดขอบว่าง + ทำพื้นหลังโปร่งใส + ย่อให้สูงไม่เกิน maxH แล้วคืนค่าเป็น PNG */
+  function trimSignature(src, whiten, maxH) {
+    var w = src.width, h = src.height, g = src.getContext('2d'), img = g.getImageData(0, 0, w, h), d = img.data;
+    var x0 = w, y0 = h, x1 = -1, y1 = -1, x, y, i;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      i = (y * w + x) * 4;
+      if (whiten) {
+        var lum = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+        if (lum > 165) d[i + 3] = 0;
+        else { d[i] = Math.min(d[i], 40); d[i + 1] = Math.min(d[i + 1], 45); d[i + 2] = Math.max(d[i + 2], 90); d[i + 3] = 255; }
+      }
+      if (d[i + 3] > 20) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+    }
+    if (x1 < 0) return '';
+    g.putImageData(img, 0, 0);
+    var pad = 6, cw = x1 - x0 + 1 + pad * 2, ch = y1 - y0 + 1 + pad * 2;
+    var k = Math.min(1, (maxH || 140) / ch, 520 / cw);
+    var out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(cw * k)); out.height = Math.max(1, Math.round(ch * k));
+    out.getContext('2d').drawImage(src, x0 - pad, y0 - pad, cw, ch, 0, 0, out.width, out.height);
+    return out.toDataURL('image/png');
+  }
+  function shSig() {
+    var s = S.sheet, cur = s.data !== undefined ? s.data : (S.sigs || {})[s.id];
+    return '<h3 class="sh-t">ลายเซ็น ' + esc(s.label) + '</h3><p class="sh-s">' + esc(s.name || 'ไม่ได้ระบุชื่อ') + ' ใช้พิมพ์ลงรายงานทุกฉบับ</p>' +
+      (s.mode === 'draw'
+        ? '<div class="sig-pad-wrap"><canvas id="sigPad" class="sig-pad"></canvas><span class="sig-line">ลงชื่อบนเส้นนี้</span></div>' +
+          '<div class="actbar-in" style="margin:10px 0 14px"><button class="btn btn-ghost" data-act="sig-clear">ล้าง</button><button class="btn btn-primary" data-act="sig-use">ใช้ลายเซ็นนี้</button></div>'
+        : '<div class="sig-prev">' + (cur ? '<img src="' + esc(cur) + '" alt="ลายเซ็น">' : '<span class="t-muted">ยังไม่มีลายเซ็น</span>') + '</div>' +
+          '<div class="ev-add" style="margin-top:0"><button class="btn btn-ghost" data-act="sig-draw">' + ic('send', 20) + 'เซ็นบนจอ</button><button class="btn btn-ghost" data-act="sig-upload">' + ic('camera', 20) + 'ถ่าย/อัปโหลดรูป</button></div>' +
+          '<p class="hint" style="margin:8px 2px 12px">ถ่ายรูปลายเซ็นบนกระดาษขาว ระบบจะลบพื้นหลังให้อัตโนมัติ</p>' +
+          '<div class="actbar-in"><button class="btn btn-bad" data-act="sig-remove"' + (cur ? '' : ' disabled') + '>ลบลายเซ็น</button><button class="btn btn-primary" data-act="sig-save"' + (s.data === undefined ? ' disabled' : '') + '>บันทึก</button></div>' +
+          '<button class="btn btn-ghost btn-block" data-act="sig-back" style="margin-top:10px">กลับไปรูปแบบรายงาน</button>');
+  }
+  function initSigPad() {
+    var cv = $('sigPad'); if (!cv) return;
+    var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round((r.width || 520) * dpr); cv.height = Math.round((r.height || 200) * dpr);
+    var g = cv.getContext('2d');
+    g.scale(dpr, dpr); g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = '#1A2A7A'; g.lineWidth = 2.6;
+    var drawing = false, last = null;
+    var pt = function (e) { var b = cv.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
+    cv.addEventListener('pointerdown', function (e) { drawing = true; last = pt(e); cv.setPointerCapture && cv.setPointerCapture(e.pointerId); e.preventDefault(); });
+    cv.addEventListener('pointermove', function (e) {
+      if (!drawing) return;
+      var p = pt(e); g.beginPath(); g.moveTo(last.x, last.y); g.lineTo(p.x, p.y); g.stroke(); last = p; S.sheet.drawn = true; e.preventDefault();
+    });
+    var end = function () { drawing = false; };
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointerleave', end); cv.addEventListener('pointercancel', end);
   }
 
   /* ---------- LINE ---------- */
@@ -1193,6 +1393,8 @@
     { k: 'defaultDays', label: 'จำนวนวันที่ให้แก้ตั้งต้น', type: 'number' },
     { k: 'remindDaysBefore', label: 'แจ้งเตือนก่อนครบกำหนด (วัน)', type: 'number' },
     { k: 'maxUploadMB', label: 'ขนาดไฟล์หลักฐานสูงสุด (MB)', type: 'number' },
+    { k: 'themeColor', label: 'สีธีมประจำโรงเรียน', type: 'color', hint: 'ทุกคนจะเห็นสีนี้ ยกเว้นคนที่เลือกสีเองในเครื่อง' },
+    { k: 'themeFx', label: 'เปิดเอฟเฟคแสงสีเป็นค่าเริ่มต้น', type: 'switch' },
     { k: 'schoolName', label: 'ชื่อโรงเรียน', type: 'text' },
     { k: 'areaName', label: 'สังกัด', type: 'text' },
     { k: 'publicStatsEnabled', label: 'เปิดหน้าสถิติสาธารณะ', type: 'switch', hint: 'แสดงเฉพาะตัวเลขรวม ไม่มีชื่อนักเรียน' },
@@ -1236,6 +1438,12 @@
     }
     if (f.type === 'switch') {
       return '<button class="toggle" data-act="form-sw" data-k="' + k + '" style="margin-bottom:14px"' + (ro ? ' disabled' : '') + '><span><b>' + f.label + '</b>' + (f.hint ? '<small>' + f.hint + '</small>' : '') + '</span><span class="sw' + (val ? ' on' : '') + '"></span></button>';
+    }
+    if (f.type === 'color') {
+      var presets = window.Theme ? window.Theme.presets : [];
+      return '<div class="field"><span class="lbl">' + f.label + '</span><div class="swatches" style="grid-template-columns:repeat(10,1fr);gap:8px;margin:2px 0 10px">' + presets.map(function (p) {
+        return '<button type="button" class="swatch" style="background:' + p.hex + '" data-act="form-color" data-k="' + k + '" data-v="' + p.hex + '" aria-pressed="' + (String(val).toLowerCase() === p.hex.toLowerCase()) + '" title="' + esc(p.name) + '"' + (ro ? ' disabled' : '') + '></button>';
+      }).join('') + '</div><label class="color-row"><input type="color" data-fk="' + k + '" value="' + esc(val || '#6E4BC9') + '"' + (ro ? ' disabled' : '') + '><span>เลือกสีเอง <small class="t-muted">' + esc(String(val || '').toUpperCase()) + '</small></span></label>' + hint + '</div>';
     }
     if (f.type === 'select') {
       return '<label class="field"><span class="lbl">' + f.label + '</span><select class="inp" data-fk="' + k + '"' + (ro ? ' disabled' : '') + '><option value="">เลือก</option>' + f.options.map(function (o) {
@@ -1436,6 +1644,7 @@
       if (f.type === 'switch') vals[f.k] = v[f.k] === undefined || v[f.k] === '' ? (f.k !== 'lineEnabled') : boolish(v[f.k]);
       else vals[f.k] = v[f.k] === undefined ? '' : String(v[f.k]);
     });
+    if (!vals.themeColor) vals.themeColor = '#6E4BC9';
     if (!vals.appUrl) vals.appUrl = location.origin;
     openSheet({ kind: 'form', form: 'settings', title: 'ตั้งค่าระบบ', sub: isAdmin() ? 'มีผลกับทุกคนทันทีหลังบันทึก' : 'ดูได้อย่างเดียว แก้ไขได้เฉพาะผู้ดูแลระบบ', readonly: !isAdmin(), values: vals, fields: SETTING_FIELDS });
   }
@@ -1622,6 +1831,9 @@
       if (S.bootOverlay) { S.bootOverlay = false; loaded(); }
       saveCache(); render();
       syncLogo(S.settings && S.settings.logoVer);
+      if (window.Theme && S.settings) window.Theme.setSchool(S.settings.themeColor, S.settings.themeFx === undefined || S.settings.themeFx === '' ? true : (S.settings.themeFx === true || String(S.settings.themeFx).toUpperCase() === 'TRUE'));
+      checkCelebrate();
+      if (S.settings && S.settings.sigVer && String(S.settings.sigVer) !== String(S.sigVer || '')) loadSigs();
       var top = S.stack[S.stack.length - 1];
       if (top && top.v === 'case') loadLog(top.id);
     }).catch(function (e) {
@@ -1802,7 +2014,7 @@
       case 'refresh': refresh(false); break;
       case 'open-case': push({ v: 'case', id: id }); break;
       case 'open-student': push({ v: 'student', sid: v }); break;
-      case 'open-report': push({ v: 'report', sid: v }); break;
+      case 'open-report': loadSigs(); push({ v: 'report', sid: v }); break;
       case 'goto-filter': S.tab = 'students'; S.filter = v; S.q = ''; window.scrollTo(0, 0); render(); break;
       case 'filter': S.filter = v; render(); break;
       case 'cls': S.cls = v; render(); break;
@@ -1880,7 +2092,7 @@
 
       case 'adm-open':
         if (v === 'settings') { settingsForm(); break; }
-        if (v === 'report') { openSheet({ kind: 'report-config', cfg: reportCfg() }); break; }
+        if (v === 'report') { loadSigs(); openSheet({ kind: 'report-config', cfg: reportCfg() }); break; }
         if (v === 'logo') { openSheet({ kind: 'logo' }); break; }
         if (v === 'reset') { openSheet({ kind: 'reset-data', opt: { cases: true, students: true, subjects: true, users: true }, confirm: '' }); break; }
         if (v === 'line') {
@@ -1912,7 +2124,44 @@
         else { loadAdm('users'); subjectForm(null); }
         break;
       case 'mg-import': openSheet({ kind: 'import', txt: '' }); break;
+      case 'export-xlsx':
+        if (v === 'filter') {
+          var q2 = S.q.trim().toLowerCase();
+          exportExcel(S.cases.filter(function (c) {
+            return passFilter(c, S.filter) && (!q2 || (c.studentName + ' ' + c.sid + ' ' + c.classroom + ' ' + c.subjectName).toLowerCase().indexOf(q2) >= 0);
+          }), S.filter !== 'all' ? S.filter : '');
+        } else exportExcel(S.cases, '');
+        break;
+      case 'sig-open':
+        var sgi = s.cfg.signers[+el.getAttribute('data-i')];
+        S.sigReturn = s.cfg;
+        openSheet({ kind: 'sig', id: sgi.id, label: sgi.label, name: sgi.name || '' });
+        break;
+      case 'sig-back': openSheet({ kind: 'report-config', cfg: S.sigReturn || reportCfg() }); break;
+      case 'sig-draw': s.mode = 'draw'; s.drawn = false; renderSheet(); break;
+      case 'sig-clear': renderSheet(); s.drawn = false; break;
+      case 'sig-use':
+        if (!s.drawn) { toast('เซ็นชื่อบนกรอบก่อน'); return; }
+        var pad = $('sigPad'), tmp = document.createElement('canvas');
+        tmp.width = pad.width; tmp.height = pad.height; tmp.getContext('2d').drawImage(pad, 0, 0);
+        s.data = trimSignature(tmp, false, 140); s.mode = ''; renderSheet();
+        break;
+      case 'sig-upload': $('fSig').value = ''; $('fSig').click(); break;
+      case 'sig-remove': s.data = ''; renderSheet(); break;
+      case 'sig-save':
+        loading('กำลังบันทึกลายเซ็น');
+        API.call('saveSignature', { id: s.id, data: s.data }).then(function (d) {
+          loaded(); S.sigs = S.sigs || {};
+          if (s.data) S.sigs[s.id] = s.data; else delete S.sigs[s.id];
+          S.sigVer = d.ver; S.settings = S.settings || {}; S.settings.sigVer = d.ver;
+          try { localStorage.setItem(SIG_KEY, JSON.stringify({ sigs: S.sigs, ver: S.sigVer })); } catch (err) {}
+          successBox(s.data ? 'บันทึกลายเซ็นแล้ว' : 'ลบลายเซ็นแล้ว');
+          openSheet({ kind: 'report-config', cfg: S.sigReturn || reportCfg() });
+        }).catch(function (err) { loaded(); toast(err.message || 'บันทึกไม่สำเร็จ'); });
+        break;
+      case 'rc-printsig': s.cfg.printSig = s.cfg.printSig === false; renderSheet(); break;
       case 'form-chip': s.values[el.getAttribute('data-k')] = v; renderSheet(); break;
+      case 'form-color': s.values[el.getAttribute('data-k')] = v; renderSheet(); break;
       case 'form-sw': var fk = el.getAttribute('data-k'); s.values[fk] = !s.values[fk]; renderSheet(); break;
       case 'form-save': saveForm(el); break;
       case 'adm-reset':
@@ -1949,7 +2198,7 @@
         }).catch(function (err) { loaded(); setBusy(el, false); if (ie) ie.textContent = err.message || 'นำเข้าไม่สำเร็จ'; });
         break;
 
-      case 'open-report-class': push({ v: 'report-class', cls: v }); break;
+      case 'open-report-class': loadSigs(); push({ v: 'report-class', cls: v }); break;
       case 'rc-remark': s.cfg.remark = !s.cfg.remark; renderSheet(); break;
       case 'rc-toggle': var ti = +el.getAttribute('data-i'); s.cfg.signers[ti].on = s.cfg.signers[ti].on === false; renderSheet(); break;
       case 'rc-up': case 'rc-down':
@@ -2121,7 +2370,8 @@
         break;
       case 'approve':
         if (!c) return;
-        optimistic('approveCases', { ids: [id] }, function () { var sn = snapCase(id); c.status = 'APPROVED'; c.upd = now(); return sn; }, restoreCase, 'อนุมัติแล้ว').catch(function () {});
+        optimistic('approveCases', { ids: [id] }, function () { var sn = snapCase(id); c.status = 'APPROVED'; c.upd = now(); return sn; }, restoreCase).catch(function () {});
+        confetti(1800); toast('อนุมัติแล้ว');
         break;
       case 'approve-all':
         var ids = S.cases.filter(function (x) { return x.status === 'PASSED'; }).map(function (x) { return x.id; });
@@ -2139,6 +2389,7 @@
           return sn;
         }, function (sn) { sn.forEach(restoreCase); }).catch(function () {});
         openSheet({ kind: 'done', icon: 'seal', title: 'อนุมัติแล้ว ' + ids.length + ' รายการ', sub: 'ระบบกำลังแจ้งนักเรียนและครูผู้สอน' });
+        confetti();
         break;
     }
   });
@@ -2231,7 +2482,7 @@
     if (navigator.onLine === false) offlineBar(true);
     if (!API.getToken()) {
       render();
-      API.call('ping').then(function (d) { syncLogo(d.logoVer); }).catch(function () {}); // ปลุกเซิร์ฟเวอร์ + เช็กโลโก้
+      API.call('ping').then(function (d) { syncLogo(d.logoVer); if (window.Theme) window.Theme.setSchool(d.themeColor, d.themeFx); }).catch(function () {}); // ปลุกเซิร์ฟเวอร์ + เช็กโลโก้และสีโรงเรียน
       return;
     }
     S.user = API.cachedUser();
