@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="แก้ 0 ร มส">
 <title>ติดตามการแก้ 0 ร มส | โรงเรียนบ้านละลม</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,11 +33,29 @@
 </div>
 <script>
   try { var lg = JSON.parse(localStorage.getItem('followup_logo') || 'null'); if (lg && lg.data) document.getElementById('spImg').src = lg.data; } catch (e) {}
+  // ปิดหน้าเปิดแอปทันทีที่ระบบวาดหน้าจอ (ทำงานได้กับ app.js ทุกเวอร์ชัน)
+  function hideSplash() {
+    var sp = document.getElementById('splash');
+    if (!sp || sp.className.indexOf('out') >= 0) return;
+    sp.className += ' out';
+    setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }, 450);
+  }
+  document.addEventListener('DOMContentLoaded', function () {
+    var app = document.getElementById('app');
+    if (app.children.length) { hideSplash(); return; }
+    if (window.MutationObserver) new MutationObserver(function () { if (app.children.length) hideSplash(); }).observe(app, { childList: true });
+  });
+  // กันค้าง: ถ้า app.js โหลดไม่สำเร็จภายใน 8 วินาที แสดงข้อความแทนการหมุน
+  setTimeout(function () {
+    var sp = document.getElementById('splash'), app = document.getElementById('app');
+    if (!sp || (app && app.children.length)) return;
+    sp.innerHTML = '<b>โหลดระบบไม่สำเร็จ</b><small>ตรวจว่าไฟล์ app.js อยู่ใน GitHub แล้วกด Ctrl+Shift+R</small>';
+  }, 8000);
 </script>
 <div id="app" class="app"></div>
 <div id="sheet"></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script async src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="config.js"></script>
 <script src="api.js"></script>
 <script src="app.js"></script>
