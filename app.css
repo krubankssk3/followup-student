@@ -703,3 +703,17 @@ html.fx .sw-load::before{content:"";position:absolute;inset:-14px;border-radius:
 
 /* แก้: ปุ่มลอยต้องลอยเสมอ แม้เปิดเอฟเฟคประกายแสง */
 html.fx .fab{position:fixed}
+
+/* ===== Step 10: หน้าจัดการข้อมูลของผู้ดูแลระบบ ===== */
+.mg-grid{display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:760px){.mg-grid{grid-template-columns:repeat(3,1fr)}}
+.mg-card{background:var(--surface);border-radius:22px;box-shadow:var(--shadow-sm);padding:16px;display:flex;flex-direction:column;gap:14px}
+.mg-head{all:unset;cursor:pointer;display:flex;align-items:center;gap:12px}
+.mg-ic{width:48px;height:48px;border-radius:14px;background:var(--grad);color:#fff;display:grid;place-items:center;flex:none;box-shadow:0 6px 16px var(--glow)}
+.mg-t{flex:1;min-width:0}
+.mg-t b{display:block;font-size:16px}
+.mg-t small{display:block;font-size:13px;color:var(--muted)}
+.mg-n{font-size:28px;font-weight:700;color:var(--brand)}
+.mg-act{display:flex;flex-wrap:wrap;gap:8px}
+.mg-act .btn{flex:1 1 auto;min-height:44px;font-size:14px;padding:0 12px}
+@media (max-width:420px){.nav button{font-size:11px}.nav .pill{width:46px}}
