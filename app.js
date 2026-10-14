@@ -62,6 +62,9 @@
     phone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
     lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    palette: '<path d="M12 22a10 10 0 1 1 10-10c0 2.2-1.8 3.5-4 3.5h-1.6a1.9 1.9 0 0 0-1.4 3.2A1.9 1.9 0 0 1 12 22z"/><circle cx="7.5" cy="10.5" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16.5" cy="10.5" r="1.2"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
     eyeoff: '<path d="M3 3l18 18"/><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.3 4.2M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
   };
   function ic(n, s) {
@@ -337,8 +340,63 @@
   function refreshBtn(cls) {
     return '<button class="ib ' + (cls || '') + '" data-act="refresh" aria-label="โหลดข้อมูลใหม่">' + (S.syncing ? '<span class="spin"></span>' : ic('refresh', 20)) + '</button>';
   }
+  /* ---------- แถบเครื่องมือมุมขวาบน: ธีม · แจ้งเตือน · รีเฟรช ---------- */
+  function toolsHtml() {
+    var un = unread();
+    return '<div class="hdr-tools no-print">' +
+      '<button class="tb" data-act="pop-theme" aria-label="ปรับธีม" aria-expanded="' + (S.pop === 'theme') + '">' + ic(isDark() ? 'moon' : 'palette', 20) + '</button>' +
+      '<button class="tb' + (un ? ' ring-bell' : '') + '" data-act="pop-notif" aria-label="การแจ้งเตือน ' + un + ' รายการใหม่" aria-expanded="' + (S.pop === 'notif') + '">' + ic('bell', 20) +
+        (un ? '<span class="tb-badge">' + (un > 9 ? '9+' : un) + '</span>' : '') + '</button>' +
+      '<button class="tb" data-act="refresh" aria-label="โหลดข้อมูลใหม่">' + (S.syncing ? '<span class="spin"></span>' : ic('refresh', 20)) + '</button></div>';
+  }
+  function popNotif() {
+    var list = S.notifs.slice().sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
+    if (S.popTab === 'unread') list = list.filter(function (n) { return !n.read; });
+    var un = unread(), hasTab = tabsFor(S.user.role).some(function (t) { return t[0] === 'notif'; });
+    var h = '<div class="pop-h"><b>การแจ้งเตือน</b>' + (un ? '<button class="link" data-act="pop-readall">อ่านทั้งหมด</button>' : '') + '</div>' +
+      '<div class="pop-tabs"><button data-act="pop-tab" data-v="all" aria-pressed="' + (S.popTab !== 'unread') + '">ทั้งหมด</button>' +
+      '<button data-act="pop-tab" data-v="unread" aria-pressed="' + (S.popTab === 'unread') + '">ยังไม่อ่าน' + (un ? ' ' + un : '') + '</button></div>';
+    if (!list.length) return h + '<div class="pop-empty">' + ic('bell', 36) + '<span>' + (S.popTab === 'unread' ? 'อ่านครบทุกรายการแล้ว' : 'ยังไม่มีการแจ้งเตือน') + '</span></div>';
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var newer = list.filter(function (n) { return (n.at || 0) >= today.getTime(); }), older = list.filter(function (n) { return (n.at || 0) < today.getTime(); });
+    var item = function (n) {
+      var ni = notifIcon(n.type);
+      return '<button class="pn' + (n.read ? '' : ' unread') + '" data-act="pop-open" data-id="' + esc(n.id) + '"><span class="pn-ic ' + ni[1] + '">' + ic(ni[0], 22) + '</span>' +
+        '<span class="pn-b"><b>' + esc(n.title) + '</b><span>' + esc(n.body) + '</span><time>' + ago(n.at) + '</time></span>' + (n.read ? '' : '<i class="pn-dot"></i>') + '</button>';
+    };
+    h += '<div class="pop-list">' + (newer.length ? '<div class="pop-sec">วันนี้</div>' + newer.slice(0, 30).map(item).join('') : '') +
+      (older.length ? '<div class="pop-sec">ก่อนหน้านี้</div>' + older.slice(0, 40).map(item).join('') : '') + '</div>';
+    if (hasTab) h += '<button class="pop-foot" data-act="pop-all">ดูการแจ้งเตือนทั้งหมด</button>';
+    return h;
+  }
+  function popTheme() {
+    var T = window.Theme, cur = T ? T.get() : { hex: '#6E4BC9', fx: true };
+    var mode = document.documentElement.getAttribute('data-theme') || 'auto';
+    var seg = [['light', 'sun', 'สว่าง'], ['dark', 'moon', 'มืด'], ['auto', 'monitor', 'ตามเครื่อง']];
+    return '<div class="pop-h"><b>ธีมและสี</b></div><div class="mode-seg">' + seg.map(function (m) {
+      return '<button data-act="mode-set" data-v="' + m[0] + '" aria-pressed="' + (mode === m[0]) + '">' + ic(m[1], 18) + '<span>' + m[2] + '</span></button>';
+    }).join('') + '</div>' +
+      '<div class="pop-lbl">สีธีม</div><div class="swatches pop-sw">' + (T ? T.presets.map(function (p) {
+        return '<button class="swatch" style="background:' + p.hex + '" data-act="theme-pick" data-v="' + p.hex + '" aria-pressed="' + (p.hex.toLowerCase() === cur.hex.toLowerCase()) + '" title="' + esc(p.name) + '"></button>';
+      }).join('') : '') + '</div>' +
+      '<label class="color-row" style="margin:0 0 10px"><input type="color" id="themeColor" value="' + esc(cur.hex) + '"><span><b>เลือกสีเอง</b><br><small class="t-muted">' + esc(cur.hex.toUpperCase()) + (cur.school ? ' (สีของโรงเรียน)' : '') + '</small></span></label>' +
+      '<button class="toggle" data-act="theme-fx" style="min-height:52px;margin-bottom:8px"><span><b>เอฟเฟคแสงสี</b></span><span class="sw' + (cur.fx ? ' on' : '') + '"></span></button>' +
+      (cur.school ? '' : '<button class="btn btn-ghost btn-block" data-act="theme-reset" style="min-height:44px;font-size:14px">ใช้สีของโรงเรียน</button>');
+  }
+  function renderPop() {
+    var el = $('pop');
+    if (!el) { el = document.createElement('div'); el.id = 'pop'; document.body.appendChild(el); }
+    if (!S.pop || !S.user) { el.innerHTML = ''; el.className = ''; return; }
+    var btn = document.querySelector('[data-act="pop-' + S.pop + '"]');
+    if (!btn) { S.pop = null; el.innerHTML = ''; return; }
+    var r = btn.getBoundingClientRect(), W = window.innerWidth;
+    var pos = W < 600 ? 'left:10px;right:10px;' : 'right:' + Math.max(10, W - r.right) + 'px;width:380px;';
+    el.className = 'pop-on';
+    el.innerHTML = '<div class="pop pop-' + S.pop + '" role="dialog" style="top:' + Math.round(r.bottom + 10) + 'px;' + pos + '">' +
+      '<i class="pop-arrow" style="right:' + (W < 600 ? Math.max(14, W - r.right + r.width / 2 - 18) : r.width / 2 - 8) + 'px"></i>' + (S.pop === 'notif' ? popNotif() : popTheme()) + '</div>';
+  }
   function heroHeader(title, sub, extra) {
-    return '<header class="top hero">' + refreshBtn('hero-ref') + '<div class="top-t"><div class="greet">' + greet() + '</div><div class="top-h" style="font-size:22px">' + title + '</div>' + (sub ? '<div class="top-s">' + sub + '</div>' : '') + (extra || '') + '</div></header>';
+    return '<header class="top hero">' + toolsHtml() + '<div class="top-t"><div class="greet">' + greet() + '</div><div class="top-h" style="font-size:22px">' + title + '</div>' + (sub ? '<div class="top-s">' + sub + '</div>' : '') + (extra || '') + '</div></header>';
   }
   function header(title, sub, right, back) {
     return '<header class="top">' + (back ? '<button class="ib" data-act="back" aria-label="ย้อนกลับ">' + ic('back') + '</button>' : '') +
@@ -717,7 +775,8 @@
     return h + navHtml();
   }
 
-  function render() {
+  function render() { renderMain(); renderPop(); }
+  function renderMain() {
     var app = $('app');
     app.className = 'app' + (S.user && !S.user.mustChangePw ? ' has-nav' : '');
     if (!S.user) { app.innerHTML = vLogin(); return; }
@@ -1900,6 +1959,7 @@
 
   /* ---------- navigation ---------- */
   function push(v) {
+    S.pop = null;
     S.stack.push(v);
     try { history.pushState({ d: S.stack.length }, ''); S.hist++; } catch (e) {}
     window.scrollTo(0, 0);
@@ -2002,6 +2062,11 @@
 
   /* ---------- events ---------- */
   document.addEventListener('click', function (e) {
+    // กดนอกกล่องแจ้งเตือน/ธีม = ปิด (กดปุ่มอื่นในแถบเครื่องมือได้ทันที)
+    if (S.pop && e.target.closest && !e.target.closest('.pop') && !e.target.closest('[data-act^="pop-"]')) {
+      S.pop = null; renderMain(); renderPop();
+      if (!e.target.closest('[data-act]')) return;
+    }
     var el = e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el) return;
     var a = el.getAttribute('data-act'), id = el.getAttribute('data-id'), v = el.getAttribute('data-v');
@@ -2009,7 +2074,7 @@
     if (a === 'noop') return;
     switch (a) {
       case 'close-sheet': closeSheet(); break;
-      case 'tab': S.tab = v; resetNav(); window.scrollTo(0, 0); render(); break;
+      case 'tab': S.pop = null; S.tab = v; resetNav(); window.scrollTo(0, 0); render(); break;
       case 'back': goBack(); break;
       case 'refresh': refresh(false); break;
       case 'open-case': push({ v: 'case', id: id }); break;
@@ -2069,6 +2134,29 @@
         }).catch(function (err) { el.disabled = false; toast(err.message || 'ส่งแจ้งเตือนไม่สำเร็จ'); });
         break;
 
+      case 'pop-notif': case 'pop-theme':
+        var which = a.slice(4); S.pop = S.pop === which ? null : which; S.popTab = S.popTab || 'all'; renderMain(); renderPop();
+        break;
+      case 'pop-close': S.pop = null; renderMain(); renderPop(); break;
+      case 'pop-tab': S.popTab = v; renderPop(); break;
+      case 'pop-readall':
+        S.notifs.forEach(function (x) { x.read = true; }); saveCache(); renderMain(); renderPop();
+        API.call('markRead', {}).catch(function () {});
+        break;
+      case 'pop-all': S.pop = null; S.tab = 'notif'; resetNav(); window.scrollTo(0, 0); render(); break;
+      case 'pop-open':
+        S.pop = null;
+        var pn = S.notifs.filter(function (x) { return x.id === id; })[0];
+        if (!pn) { render(); return; }
+        if (!pn.read) { pn.read = true; saveCache(); API.call('markRead', { ids: [pn.id] }).catch(function () {}); }
+        if (pn.caseId && caseById(pn.caseId)) push({ v: 'case', id: pn.caseId }); else render();
+        break;
+      case 'mode-set':
+        if (v === 'auto') { document.documentElement.removeAttribute('data-theme'); try { localStorage.removeItem(THEME_KEY); } catch (err) {} }
+        else { document.documentElement.setAttribute('data-theme', v); try { localStorage.setItem(THEME_KEY, v); } catch (err) {} }
+        if (window.Theme) window.Theme.apply();
+        renderMain(); renderPop();
+        break;
       case 'open-notif':
         var n = S.notifs.filter(function (x) { return x.id === id; })[0];
         if (!n) return;
@@ -2261,7 +2349,7 @@
         render();
         setTimeout(function () { var b = document.querySelector('[data-act=adm-open][data-v="' + v + '"]'); if (b) b.click(); }, 0);
         break;
-      case 'theme-pick': if (window.Theme) { window.Theme.set(v); haptic(); renderSheet(); } break;
+      case 'theme-pick': if (window.Theme) { window.Theme.set(v); haptic(); renderSheet(); renderPop(); } break;
       case 'theme-fx': if (window.Theme) { window.Theme.setFx(!window.Theme.get().fx); render(); renderSheet(); } break;
       case 'theme-reset': if (window.Theme) { window.Theme.reset(); render(); renderSheet(); } break;
       case 'line-open': openLine('self'); break;
@@ -2400,7 +2488,7 @@
     if (t.id === 'sq' && S.sheet) { S.sheet.sq = t.value; $('sres').innerHTML = stuResults(t.value); return; }
     if (t.id === 'aq') { S.aq = t.value; var al = $('alist'); if (al) al.innerHTML = admStudentRows(); return; }
     if (t.id === 'importTxt' && S.sheet) { S.sheet.txt = t.value; var ip = $('importPrev'); if (ip) ip.innerHTML = importPreview(); return; }
-    if (t.id === 'themeColor' && window.Theme) { window.Theme.set(t.value); return; }
+    if (t.id === 'themeColor' && window.Theme) { window.Theme.set(t.value); return; } // พรีวิวสด ไม่วาดใหม่ระหว่างลาก
     if (t.id === 'resetConfirm' && S.sheet) {
       S.sheet.confirm = t.value;
       var rb = document.querySelector('[data-act=reset-run]');
@@ -2423,7 +2511,7 @@
 
   document.addEventListener('change', function (e) {
     var t = e.target;
-    if (t.id === 'themeColor' && window.Theme) { window.Theme.set(t.value); renderSheet(); return; }
+    if (t.id === 'themeColor' && window.Theme) { window.Theme.set(t.value); renderSheet(); renderPop(); return; }
     var nid = t.getAttribute && t.getAttribute('data-note');
     if (!nid) return;
     var c = caseById(nid);
@@ -2444,7 +2532,12 @@
     if (id === 'loginForm') { e.preventDefault(); doLogin(e.target); }
     else if (id === 'mustForm' || id === 'pwForm') { e.preventDefault(); doChangePw(e.target); }
   });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.sheet) closeSheet(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (S.pop) { S.pop = null; renderMain(); renderPop(); return; }
+    if (S.sheet) closeSheet();
+  });
+  window.addEventListener('resize', function () { if (S.pop) renderPop(); });
 
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && S.user && !S.user.mustChangePw && now() - S.lastSync > 60000) refresh(true);
