@@ -24,7 +24,8 @@
     seal: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
-    cap: '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>'
+    cap: '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>'
   };
   function logo() {
     var src = '';
@@ -49,11 +50,62 @@
     var hasLogin = false;
     try { hasLogin = !!localStorage.getItem('followup_token'); } catch (e) {}
     var loginLabel = hasLogin ? 'เข้าระบบของฉัน' : 'เข้าสู่ระบบ';
-    return '<header class="pub-hero"><div class="pub-top"><button data-act="reload" aria-label="รีเฟรช">' + svg('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>') + '</button><a href="app.html">' + loginLabel + '</a></div>' + logo() +
+    return '<header class="pub-hero"><div class="pub-top"><button data-act="reload" aria-label="รีเฟรช">' + svg('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>') + '</button>' +
+      '<button class="pub-dev" data-act="dev">' + svg(IC.user) + '<span>ประวัติผู้พัฒนา</span></button></div>' + logo() +
       '<h1>สถิติการติดตามการแก้ผลการเรียน 0 ร มส</h1><p>' + esc(d ? d.school + ' ' + d.area : (C.SCHOOL || '')) + '</p>' +
       (d ? '<p>ปีการศึกษา ' + esc(d.year) + ' ภาคเรียนปัจจุบัน ' + esc(d.semester) + '</p>' : '') +
-      '<div class="pub-cta"><a class="pub-btn" href="app.html">' + svg('<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/>') + loginLabel + '</a>' +
+      '<div class="pub-cta"><a class="rb-btn" href="app.html"><span class="rb-glow" aria-hidden="true"></span><span class="rb-ring" aria-hidden="true"></span>' +
+      '<span class="rb-in">' + svg('<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/>') + '<b>' + loginLabel + '</b></span></a>' +
       '<span>นักเรียน ครู และงานวัดผล เข้าใช้งานระบบติดตาม</span></div></header>';
+  }
+
+  /* ---------- ประวัติผู้พัฒนา ---------- */
+  var DEV_KEY = 'followup_dev';
+  var DEV = null;
+  (function () { try { DEV = JSON.parse(localStorage.getItem(DEV_KEY) || 'null'); } catch (e) { DEV = null; } })();
+  function linkBtn(href, icon, label, cls) {
+    return '<a class="dv-link ' + (cls || '') + '" href="' + esc(href) + '" target="_blank" rel="noopener">' + svg(icon) + '<span>' + esc(label) + '</span></a>';
+  }
+  function devHtml() {
+    if (!DEV) return '<div class="dv-load"><span class="dv-spin"></span>กำลังโหลดข้อมูลผู้พัฒนา</div>';
+    var p = DEV.profile || {}, ph = DEV.photo;
+    var initials = String(p.name || '?').replace(/^(นาย|นางสาว|นาง|ดร\.|Mr\.|Ms\.)\s*/, '').slice(0, 1);
+    var h = '<div class="dv-head"><div class="dv-photo">' + (ph ? '<img src="' + esc(ph) + '" alt="">' : '<span>' + esc(initials) + '</span>') + '</div>' +
+      '<div class="dv-tag">ผู้พัฒนาระบบ</div><h2>' + esc(p.name) + '</h2>' +
+      (p.position ? '<div class="dv-pos">' + esc(p.position) + '</div>' : '') + (p.org ? '<div class="dv-org">' + esc(p.org) + '</div>' : '') + '</div>';
+    if (p.bio) h += '<div class="dv-sec"><h3>เกี่ยวกับ</h3><p>' + esc(p.bio).replace(/\n/g, '<br>') + '</p></div>';
+    var skills = String(p.skills || '').split(/[,\n]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; });
+    if (skills.length) h += '<div class="dv-sec"><h3>ความเชี่ยวชาญ</h3><div class="dv-chips">' + skills.map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('') + '</div></div>';
+    var works = String(p.works || '').split('\n').map(function (x) { return x.replace(/^[-•*\d.)\s]+/, '').trim(); }).filter(function (x) { return x; });
+    if (works.length) h += '<div class="dv-sec"><h3>ผลงาน</h3><ul class="dv-works">' + works.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+    var links = '';
+    if (p.phone) links += '<a class="dv-link" href="tel:' + esc(String(p.phone).replace(/[^\d+]/g, '')) + '">' + svg('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>') + '<span>' + esc(p.phone) + '</span></a>';
+    if (p.email) links += '<a class="dv-link" href="mailto:' + esc(p.email) + '">' + svg('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>') + '<span>' + esc(p.email) + '</span></a>';
+    if (p.line) links += linkBtn('https://line.me/ti/p/~' + encodeURIComponent(String(p.line).replace(/^@/, '')), '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.3 9.6 9.6 0 0 1-3.4-.6L3 21l1.9-4.6A8 8 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/>', 'LINE ' + p.line, 'ln');
+    if (p.facebook) links += linkBtn(p.facebook, '<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>', 'Facebook', 'fb');
+    if (p.website) links += linkBtn(p.website, '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>', 'เว็บไซต์');
+    if (links) h += '<div class="dv-sec"><h3>ติดต่อ</h3><div class="dv-links">' + links + '</div></div>';
+    h += '<p class="dv-foot">ระบบติดตามการแก้ 0 ร มส ' + esc(C.SCHOOL || 'โรงเรียนบ้านละลม') + '</p>';
+    return h;
+  }
+  function openDev() {
+    var m = $('devModal');
+    if (!m) { m = document.createElement('div'); m.id = 'devModal'; document.body.appendChild(m); }
+    m.className = 'dv-bg';
+    m.innerHTML = '<div class="dv-card" role="dialog" aria-modal="true" aria-label="ประวัติผู้พัฒนา"><button class="dv-x" data-act="dev-close" aria-label="ปิด">' + svg('<path d="M18 6 6 18M6 6l12 12"/>') + '</button><div id="devBody">' + devHtml() + '</div></div>';
+    document.body.style.overflow = 'hidden';
+    var want = DATA && DATA.devVer !== undefined ? String(DATA.devVer) : null;
+    if (DEV && want !== null && String(DEV.ver) === want) return;
+    API.call('getDevProfile').then(function (d) {
+      DEV = d;
+      try { localStorage.setItem(DEV_KEY, JSON.stringify(d)); } catch (e) {}
+      var b = $('devBody'); if (b) b.innerHTML = devHtml();
+    }).catch(function (e) { var b = $('devBody'); if (b && !DEV) b.innerHTML = '<div class="dv-load">' + esc(e.message || 'โหลดไม่สำเร็จ') + '</div>'; });
+  }
+  function closeDev() {
+    var m = $('devModal'); if (!m) return;
+    m.className = 'dv-bg out'; document.body.style.overflow = '';
+    setTimeout(function () { if (m.className.indexOf('out') >= 0) m.innerHTML = ''; m.className = ''; }, 220);
   }
 
   function render() {
@@ -188,9 +240,16 @@
   }
 
   document.addEventListener('click', function (e) {
-    var el = e.target.closest ? e.target.closest('[data-act="reload"]') : null;
-    if (el) { DATA = null; render(); load(); }
+    if (!e.target.closest) return;
+    if (e.target.id === 'devModal') { closeDev(); return; }
+    var el = e.target.closest('[data-act]');
+    if (!el) return;
+    var a = el.getAttribute('data-act');
+    if (a === 'reload') { DATA = null; render(); load(); }
+    else if (a === 'dev') openDev();
+    else if (a === 'dev-close') closeDev();
   });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDev(); });
   var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
   try { var th = localStorage.getItem('followup_theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (e) {}
   if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (DATA) render(); });
