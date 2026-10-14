@@ -4,73 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#5B5BD6">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="แก้ 0 ร มส">
-<title>ติดตามการแก้ 0 ร มส | โรงเรียนบ้านละลม</title>
+<title>ระบบติดตามการแก้ 0 ร มส | โรงเรียนบ้านละลม</title>
 <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="public.css">
 <script src="theme.js"></script>
-<style>
-  #splash{position:fixed;inset:0;z-index:3000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--grad,linear-gradient(135deg,#5B5BD6,#8A4FBF));color:#fff;font-family:"IBM Plex Sans Thai",Tahoma,sans-serif;transition:opacity .4s}
-  #splash.out{opacity:0;pointer-events:none}
-  #splash .sp-logo{position:relative;width:120px;height:120px}
-  #splash .sp-logo img,#splash .sp-logo .sp-ph{position:absolute;inset:16px;width:88px;height:88px;border-radius:50%;background:#fff;object-fit:contain;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
-  #splash .sp-ring{position:absolute;inset:0;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;animation:spsp .9s linear infinite}
-  #splash b{font-size:18px;font-weight:600}
-  #splash small{opacity:.8}
-  #splash .sp-bar{width:180px;height:6px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden;margin-top:6px}
-  #splash .sp-bar i{display:block;height:100%;width:0;border-radius:3px;background:#fff;animation:spbar 3.5s ease-out forwards}
-  #splash .sp-msg{font-size:13px;opacity:.85;min-height:20px}
-  @keyframes spbar{to{width:100%}}
-  @keyframes spsp{to{transform:rotate(360deg)}}
-</style>
 </head>
 <body>
-<div id="splash">
-  <div class="sp-logo"><div class="sp-ring"></div><img id="spImg" src="icon.svg" alt=""></div>
-  <b>ติดตามการแก้ 0 ร มส</b><small>โรงเรียนบ้านละลม</small>
-  <div class="sp-bar"><i></i></div><div class="sp-msg" id="spMsg">กำลังเตรียมระบบ</div>
-</div>
-<script>
-  try { var lg = JSON.parse(localStorage.getItem('followup_logo') || 'null'); if (lg && lg.data) document.getElementById('spImg').src = lg.data; } catch (e) {}
-  // แสดงหน้าเปิดแอปอย่างน้อย SPLASH_MS แล้วจึงปิด (ปรับตัวเลขได้ 3000-5000)
-  var SPLASH_MS = 3500, SPLASH_T0 = Date.now();
-  var spSteps = ['กำลังเตรียมระบบ', 'กำลังเชื่อมต่อเซิร์ฟเวอร์', 'กำลังโหลดข้อมูล', 'พร้อมใช้งาน'];
-  spSteps.forEach(function (t, i) {
-    setTimeout(function () { var m = document.getElementById('spMsg'); if (m) m.textContent = t; }, i * (SPLASH_MS / spSteps.length));
-  });
-  function hideSplash() {
-    var wait = SPLASH_MS - (Date.now() - SPLASH_T0);
-    if (wait > 0) { setTimeout(hideSplash, wait); return; }
-    var sp = document.getElementById('splash');
-    if (!sp || sp.className.indexOf('out') >= 0) return;
-    sp.className += ' out';
-    setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }, 450);
-  }
-  document.addEventListener('DOMContentLoaded', function () {
-    var app = document.getElementById('app');
-    if (app.children.length) { hideSplash(); return; }
-    if (window.MutationObserver) new MutationObserver(function () { if (app.children.length) hideSplash(); }).observe(app, { childList: true });
-  });
-  // กันค้าง: ถ้า app.js โหลดไม่สำเร็จภายใน 8 วินาที แสดงข้อความแทนการหมุน
-  setTimeout(function () {
-    var sp = document.getElementById('splash'), app = document.getElementById('app');
-    if (!sp || (app && app.children.length)) return;
-    sp.innerHTML = '<b>โหลดระบบไม่สำเร็จ</b><small>ตรวจว่าไฟล์ app.js อยู่ใน GitHub แล้วกด Ctrl+Shift+R</small>';
-  }, 8000);
-</script>
-<div id="app" class="app"></div>
-<div id="sheet"></div>
+<div id="pub" class="pub"></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
-<script async src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="config.js"></script>
 <script src="api.js"></script>
-<script src="app.js"></script>
+<script src="public.js"></script>
 </body>
 </html>
