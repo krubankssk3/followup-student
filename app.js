@@ -376,7 +376,7 @@
       '<div id="lgErr" class="err" role="alert"></div>' +
       '<button class="btn btn-primary btn-block" type="submit" id="lgBtn">เข้าสู่ระบบ</button></form>' +
       '<p class="demo-tag">ลืมรหัสผ่าน นักเรียนติดต่อครูที่ปรึกษา ครูติดต่องานวัดผล</p>' +
-      '<a class="pub-link" href="public.html">' + ic('chart', 20) + 'ดูสถิติภาพรวมของโรงเรียน</a></div>' +
+      '<a class="pub-link" href="./">' + ic('chart', 20) + 'กลับหน้าหลัก สถิติของโรงเรียน</a></div>' +
       '<p class="foot">' + FOOT + '</p></div>';
   }
   function pwFormHtml(id) {
@@ -1401,7 +1401,7 @@
     { k: 'lineEnabled', label: 'เปิดใช้ LINE แจ้งเตือน', type: 'switch', hint: 'ต้องใส่ Channel access token ด้านล่างด้วย' },
     { k: 'lineChannelToken', label: 'Channel access token (long-lived)', type: 'text', hint: 'จาก LINE Developers > Messaging API ถ้าเห็น •••••• แปลว่าใส่แล้ว' },
     { k: 'lineOaId', label: 'LINE OA Basic ID', ph: 'เช่น @banlalom', hint: 'ใช้สร้าง QR ให้ผู้ปกครองสแกน' },
-    { k: 'appUrl', label: 'ลิงก์เว็บระบบ', ph: 'https://followup-student.vercel.app', hint: 'แนบท้ายข้อความ LINE ให้ผู้ปกครองกดเปิด' },
+    { k: 'appUrl', label: 'ลิงก์เว็บระบบ', ph: 'https://followup-student.vercel.app/app', hint: 'แนบท้ายข้อความ LINE ลงท้ายด้วย /app ผู้ปกครองกดแล้วเข้าหน้าเข้าสู่ระบบทันที' },
     { k: 'lineNotifyNew', label: 'ส่ง LINE เมื่อครูบันทึก 0 ร มส', type: 'switch' },
     { k: 'lineNotifyResult', label: 'ส่ง LINE เมื่อมีผลการแก้ ส่งกลับ หรือครูเตือน', type: 'switch' },
     { k: 'lineNotifyRemind', label: 'ส่ง LINE เตือนอัตโนมัติก่อนและหลังครบกำหนด', type: 'switch', hint: 'ใช้โควตามากที่สุด ปิดได้ถ้าโควตาไม่พอ' }
@@ -1645,7 +1645,7 @@
       else vals[f.k] = v[f.k] === undefined ? '' : String(v[f.k]);
     });
     if (!vals.themeColor) vals.themeColor = '#6E4BC9';
-    if (!vals.appUrl) vals.appUrl = location.origin;
+    if (!vals.appUrl) vals.appUrl = location.origin + '/app';
     openSheet({ kind: 'form', form: 'settings', title: 'ตั้งค่าระบบ', sub: isAdmin() ? 'มีผลกับทุกคนทันทีหลังบันทึก' : 'ดูได้อย่างเดียว แก้ไขได้เฉพาะผู้ดูแลระบบ', readonly: !isAdmin(), values: vals, fields: SETTING_FIELDS });
   }
 
