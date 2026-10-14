@@ -3,7 +3,8 @@
  */
 (function () {
   'use strict';
-  var KEY = 'followup_theme_color';
+  var KEY = 'followup_theme_color';          // สีที่ผู้ใช้เลือกเอง (มีผลเหนือกว่า)
+  var SCHOOL_KEY = 'followup_school_theme';  // สีประจำโรงเรียนที่ admin ตั้ง
   var PRESETS = [
     { hex: '#6E4BC9', name: 'ม่วงลาเวนเดอร์' },
     { hex: '#3B6FE0', name: 'ฟ้าน้ำทะเล' },
@@ -17,12 +18,19 @@
     { hex: '#495057', name: 'เทาเรียบหรู' }
   ];
 
+  function school() {
+    try {
+      var t = JSON.parse(localStorage.getItem(SCHOOL_KEY) || 'null');
+      if (t && /^#[0-9a-f]{6}$/i.test(t.hex)) return { hex: t.hex, fx: t.fx !== false, school: true };
+    } catch (e) {}
+    return { hex: PRESETS[0].hex, fx: true, school: true };
+  }
   function load() {
     try {
       var t = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (t && /^#[0-9a-f]{6}$/i.test(t.hex)) return { hex: t.hex, fx: t.fx !== false };
+      if (t && /^#[0-9a-f]{6}$/i.test(t.hex)) return { hex: t.hex, fx: t.fx !== false, school: false };
     } catch (e) {}
-    return { hex: PRESETS[0].hex, fx: true };
+    return school();
   }
   function save(t) { try { localStorage.setItem(KEY, JSON.stringify(t)); } catch (e) {} }
 
@@ -101,6 +109,15 @@
     set: function (hex) { var t = load(); t.hex = hex; save(t); return apply(t); },
     setFx: function (on) { var t = load(); t.fx = !!on; save(t); return apply(t); },
     reset: function () { try { localStorage.removeItem(KEY); } catch (e) {} return apply(); },
+    school: school,
+    /** รับสีประจำโรงเรียนจากเซิร์ฟเวอร์ ถ้าผู้ใช้ยังไม่ได้เลือกสีเองจะเปลี่ยนตามทันที */
+    setSchool: function (hex, fx) {
+      if (hex && !/^#[0-9a-f]{6}$/i.test(hex)) return;
+      var cur = school(), next = { hex: hex || PRESETS[0].hex, fx: fx !== false };
+      if (cur.hex.toLowerCase() === next.hex.toLowerCase() && cur.fx === next.fx) return;
+      try { localStorage.setItem(SCHOOL_KEY, JSON.stringify(next)); } catch (e) {}
+      if (load().school) apply();
+    },
     apply: apply
   };
 
