@@ -46,9 +46,14 @@
   }
 
   function hero(d) {
-    return '<header class="pub-hero"><div class="pub-top"><button data-act="reload">รีเฟรช</button><a href="./">เข้าสู่ระบบ</a></div>' + logo() +
+    var hasLogin = false;
+    try { hasLogin = !!localStorage.getItem('followup_token'); } catch (e) {}
+    var loginLabel = hasLogin ? 'เข้าระบบของฉัน' : 'เข้าสู่ระบบ';
+    return '<header class="pub-hero"><div class="pub-top"><button data-act="reload" aria-label="รีเฟรช">' + svg('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>') + '</button><a href="app.html">' + loginLabel + '</a></div>' + logo() +
       '<h1>สถิติการติดตามการแก้ผลการเรียน 0 ร มส</h1><p>' + esc(d ? d.school + ' ' + d.area : (C.SCHOOL || '')) + '</p>' +
-      (d ? '<p>ปีการศึกษา ' + esc(d.year) + ' ภาคเรียนปัจจุบัน ' + esc(d.semester) + '</p>' : '') + '</header>';
+      (d ? '<p>ปีการศึกษา ' + esc(d.year) + ' ภาคเรียนปัจจุบัน ' + esc(d.semester) + '</p>' : '') +
+      '<div class="pub-cta"><a class="pub-btn" href="app.html">' + svg('<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5M15 12H3"/>') + loginLabel + '</a>' +
+      '<span>นักเรียน ครู และงานวัดผล เข้าใช้งานระบบติดตาม</span></div></header>';
   }
 
   function render() {
