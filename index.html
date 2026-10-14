@@ -21,5 +21,11 @@
 <script src="config.js"></script>
 <script src="api.js"></script>
 <script src="public.js"></script>
+<script>
+  // PWA: เปิดได้แม้เน็ตหลุด (ทำงานเฉพาะบน https เช่น Vercel)
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+  }
+</script>
 </body>
 </html>
