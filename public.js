@@ -175,6 +175,7 @@
 
   function load() {
     API.call('publicStats').then(function (d) {
+      if (window.Theme && d.themeColor !== undefined) window.Theme.setSchool(d.themeColor, true);
       DATA = d; render(); syncLogo(d.logoVer);
     }).catch(function (e) {
       $('pub').innerHTML = hero(null) + '<div class="pub-empty">' + esc(e.message || 'โหลดข้อมูลไม่สำเร็จ') + '</div>';
