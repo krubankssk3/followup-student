@@ -894,6 +894,7 @@
     else if (k === 'line') inner = shLine();
     else if (k === 'linestatus') inner = shLineStatus();
     else if (k === 'backup') inner = shBackup();
+    else if (k === 'dev') inner = shDev();
     else if (k === 'report-config') inner = shReportCfg();
     else if (k === 'logo') inner = shLogo();
     else if (k === 'themepick') inner = shTheme();
@@ -1036,6 +1037,14 @@
       processLogo(f).then(function (d) { S.sheet.newData = d; renderSheet(); }).catch(function (e) { toast(e.message); });
     });
     document.body.appendChild(lg);
+    var dv = document.createElement('input');
+    dv.type = 'file'; dv.id = 'fDev'; dv.accept = 'image/*'; dv.hidden = true;
+    dv.addEventListener('change', function () {
+      var f = dv.files && dv.files[0];
+      if (!f || !S.sheet || S.sheet.kind !== 'dev') return;
+      processPhoto(f).then(function (d) { S.sheet.photo = d; renderSheet(); }).catch(function (e) { toast(e.message); });
+    });
+    document.body.appendChild(dv);
     var sg = document.createElement('input');
     sg.type = 'file'; sg.id = 'fSig'; sg.accept = 'image/*'; sg.hidden = true;
     sg.addEventListener('change', function () {
@@ -1537,6 +1546,57 @@
     h += '<button class="btn btn-primary btn-block" data-act="bk-now"' + (S.sheet.busy ? ' disabled' : '') + '>' + (S.sheet.busy === 'now' ? '<span class="spin"></span>กำลังสำรอง' : ic('refresh', 20) + 'สำรองตอนนี้') + '</button>';
     return h;
   }
+  var DEV_FORM = [
+    ['name', 'ชื่อ-นามสกุล', 'input', 'เช่น นายชิติพัทธ์ นิลวรรณ'], ['position', 'ตำแหน่ง', 'input', 'เช่น ครู วิทยฐานะครูชำนาญการ'],
+    ['org', 'หน่วยงาน', 'input', 'เช่น โรงเรียนบ้านละลม สพป.ศรีสะเกษ เขต 3'],
+    ['bio', 'เกี่ยวกับผู้พัฒนา', 'area', 'แนะนำตัวสั้นๆ ประสบการณ์ แรงบันดาลใจในการพัฒนาระบบ'],
+    ['skills', 'ความเชี่ยวชาญ (คั่นด้วยจุลภาค)', 'input', 'เช่น คณิตศาสตร์, Google Apps Script, ออกแบบเว็บ'],
+    ['works', 'ผลงาน (บรรทัดละ 1 รายการ)', 'area', 'เช่น ระบบติดตามการแก้ 0 ร มส\nระบบเช็กชื่อนักเรียนด้วย QR'],
+    ['phone', 'เบอร์โทร', 'input', '08x-xxx-xxxx'], ['email', 'อีเมล', 'input', 'name@example.com'],
+    ['line', 'LINE ID', 'input', 'เช่น krubank'], ['facebook', 'ลิงก์ Facebook', 'input', 'https://facebook.com/...'],
+    ['website', 'เว็บไซต์', 'input', 'https://...']
+  ];
+  function shDev() {
+    var s = S.sheet, d = s.data, h = '<h3 class="sh-t">ประวัติผู้พัฒนา</h3><p class="sh-s">แสดงเมื่อกดปุ่ม ประวัติผู้พัฒนา ที่หน้าแรก ช่องไหนว่างจะไม่แสดง</p>';
+    if (!d) return h + '<div class="soon"><span class="spin"></span></div>';
+    var p = s.form || (s.form = JSON.parse(JSON.stringify(d.profile || {})));
+    var ph = s.photo !== undefined ? s.photo : d.photo;
+    h += '<div class="dev-ph"><div class="dev-ph-i">' + (ph ? '<img src="' + esc(ph) + '" alt="">' : ic('user', 44)) + '</div><div class="dev-ph-b">' +
+      '<button class="btn btn-ghost" data-act="dev-pick">' + ic('camera', 20) + (ph ? 'เปลี่ยนรูป' : 'ใส่รูป') + '</button>' +
+      (ph ? '<button class="btn btn-ghost" data-act="dev-nophoto">ลบรูป</button>' : '') + '<small class="t-muted">ระบบครอปเป็นวงกลมและย่อให้อัตโนมัติ</small></div></div>';
+    h += DEV_FORM.map(function (f) {
+      var val = esc(p[f[0]] || '');
+      return '<label class="field"><span class="lbl">' + f[1] + '</span>' + (f[2] === 'area'
+        ? '<textarea class="inp" data-dev="' + f[0] + '" rows="4" placeholder="' + esc(f[3]).replace(/\n/g, '&#10;') + '">' + val + '</textarea>'
+        : '<input class="inp" data-dev="' + f[0] + '" value="' + val + '" placeholder="' + esc(f[3]) + '"' + (f[0] === 'email' ? ' type="email" inputmode="email"' : (f[0] === 'phone' ? ' inputmode="tel"' : '')) + '>') + '</label>';
+    }).join('');
+    h += '<button class="btn btn-primary btn-block" data-act="dev-save" style="margin-top:6px">' + ic('check', 20) + 'บันทึกประวัติผู้พัฒนา</button>';
+    h += '<a class="btn btn-ghost btn-block" href="./" target="_blank" rel="noopener" style="margin-top:8px">' + ic('eye', 20) + 'ดูหน้าแรก</a>';
+    return h;
+  }
+  function processPhoto(file) {
+    return new Promise(function (resolve, reject) {
+      if (!/^image\//.test(file.type)) return reject({ message: 'เลือกไฟล์รูปภาพ' });
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var n = 320, cv = document.createElement('canvas'), g = cv.getContext('2d');
+        var side = Math.min(img.naturalWidth, img.naturalHeight), sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) * 0.35;
+        var out = null, q = 0.88;
+        for (var i = 0; i < 8 && !out; i++) {
+          cv.width = n; cv.height = n;
+          g.fillStyle = '#fff'; g.fillRect(0, 0, n, n);
+          g.drawImage(img, sx, sy, side, side, 0, 0, n, n);
+          var j = cv.toDataURL('image/jpeg', q);
+          if (j.length <= 46000) out = j;
+          else if (q > 0.6) q -= 0.1; else n = Math.round(n * 0.8);
+        }
+        URL.revokeObjectURL(url);
+        out ? resolve(out) : reject({ message: 'ย่อรูปไม่สำเร็จ ลองใช้รูปอื่น' });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject({ message: 'เปิดรูปนี้ไม่ได้' }); };
+      img.src = url;
+    });
+  }
   function bkCall(action, payload, busy, ok) {
     var sh = S.sheet; if (!sh || sh.busy) return;
     sh.busy = busy; renderSheet();
@@ -1971,6 +2031,7 @@
       rows.push(['students', 'user', 'นักเรียน', 'นำเข้าจาก Excel แก้ไขข้อมูล รีเซ็ตรหัส']);
       rows.push(['subjects', 'file', 'รายวิชา', 'รหัสวิชาและครูผู้สอน']);
       if (isAdmin()) rows.push(['line', 'chat', 'LINE OA', 'สถานะ โควตาข้อความ Webhook ทดสอบส่ง']);
+      if (isAdmin()) rows.push(['dev', 'user', 'ประวัติผู้พัฒนา', 'รูป ชื่อ ผลงาน ช่องทางติดต่อ แสดงที่หน้าแรก']);
       if (isAdmin()) rows.push(['logo', 'image', 'โลโก้โรงเรียน', 'อัปโหลดรูปโลโก้ใช้ทั้งระบบ']);
       rows.push(['report', 'printer', 'รูปแบบรายงาน', 'หัวรายงานและผู้ลงนาม']);
       if (isAdmin()) rows.push(['backup', 'calendar', 'สำรองข้อมูลอัตโนมัติ', 'สำรอง Google Sheet ทุกวันอาทิตย์ กู้คืนได้จาก Drive']);
@@ -2312,6 +2373,12 @@
         if (v === 'settings') { settingsForm(); break; }
         if (v === 'report') { loadSigs(); openSheet({ kind: 'report-config', cfg: reportCfg() }); break; }
         if (v === 'logo') { openSheet({ kind: 'logo' }); break; }
+        if (v === 'dev') {
+          openSheet({ kind: 'dev', data: null });
+          API.call('getDevProfile').then(function (d) { if (S.sheet && S.sheet.kind === 'dev') { S.sheet.data = d; renderSheet(); } })
+            .catch(function (err) { closeSheet(); toast(err.message || 'โหลดประวัติผู้พัฒนาไม่สำเร็จ'); });
+          break;
+        }
         if (v === 'backup') {
           openSheet({ kind: 'backup', data: null });
           API.call('adminBackupInfo').then(function (d) { if (S.sheet && S.sheet.kind === 'backup') { S.sheet.data = d; renderSheet(); } })
@@ -2328,6 +2395,18 @@
         S.aq = ''; S.acls = 'all';
         push({ v: 'adm-' + v }); loadAdm(v, true);
         if (v === 'subjects') loadAdm('users');
+        break;
+      case 'dev-pick': $('fDev').value = ''; $('fDev').click(); break;
+      case 'dev-nophoto': s.photo = ''; renderSheet(); break;
+      case 'dev-save':
+        if (!s || !s.form) break;
+        if (!String(s.form.name || '').trim()) { toast('ใส่ชื่อผู้พัฒนา'); break; }
+        loading('กำลังบันทึกประวัติผู้พัฒนา');
+        var dvp = { profile: s.form };
+        if (s.photo !== undefined) dvp.photo = s.photo;
+        API.call('saveDevProfile', dvp).then(function () {
+          loaded(); closeSheet(); successBox('บันทึกประวัติผู้พัฒนาแล้ว', 'ผู้เข้าชมหน้าแรกจะเห็นข้อมูลใหม่ภายใน 5 นาที');
+        }).catch(function (err) { loaded(); toast(err.message || 'บันทึกไม่สำเร็จ'); });
         break;
       case 'bk-toggle':
         if (!s || !s.data) break;
@@ -2627,6 +2706,7 @@
 
   document.addEventListener('input', function (e) {
     var t = e.target;
+    if (t.getAttribute && t.getAttribute('data-dev') && S.sheet && S.sheet.kind === 'dev' && S.sheet.form) { S.sheet.form[t.getAttribute('data-dev')] = t.value; return; }
     if (t.id === 'gsq') { S.gsq = t.value; var gr = $('gsres'); if (gr) gr.innerHTML = gsResults(t.value); return; }
     if (t.id === 'q') { S.q = t.value; var sl = $('slist'); if (sl) sl.innerHTML = studentListHtml(); return; }
     if (t.id === 'sq' && S.sheet) { S.sheet.sq = t.value; $('sres').innerHTML = stuResults(t.value); return; }
