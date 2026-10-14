@@ -567,3 +567,65 @@ html.fx .sw-load::before{content:"";position:absolute;inset:-14px;border-radius:
 .theme-swatch-dot{width:22px;height:22px;border-radius:50%;background:var(--grad);flex:none;box-shadow:0 0 0 2px var(--surface),0 0 0 3px var(--line)}
 
 @media (prefers-reduced-motion:reduce){html.fx body::before,html.fx body::after{animation:none}}
+
+/* =====================================================================
+   Step 8: SweetAlert2 ธีมเทคโนโลยี AI
+   ===================================================================== */
+/* ขอบแสงวิ่งวนรอบกล่อง */
+.swal2-popup.sw-pop{overflow:hidden;isolation:isolate;border:0!important;background:var(--surface)!important}
+.swal2-popup.sw-pop::before{content:"";position:absolute;z-index:-2;left:50%;top:50%;width:260%;height:260%;
+  background:conic-gradient(from 0deg,transparent 0deg,var(--brand) 40deg,#00E5FF 80deg,transparent 140deg,transparent 180deg,var(--brand) 220deg,#B46CFF 260deg,transparent 320deg);
+  transform:translate(-50%,-50%);animation:aiSpin 4s linear infinite}
+.swal2-popup.sw-pop::after{content:"";position:absolute;z-index:-1;inset:2px;border-radius:24px;
+  background:radial-gradient(120% 80% at 50% 0%,var(--brand-soft) 0%,transparent 55%),
+    linear-gradient(rgba(127,127,200,.07) 1px,transparent 1px) 0 0/22px 22px,
+    linear-gradient(90deg,rgba(127,127,200,.07) 1px,transparent 1px) 0 0/22px 22px,var(--surface)}
+.swal2-popup.sw-pop>*{position:relative;z-index:1}
+.swal2-popup.sw-pop>.swal2-timer-progress-bar-container{position:absolute;z-index:1}
+@keyframes aiSpin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+/* มุมกรอบแบบหน้าจอเทคโนโลยี */
+.ai-corners{position:absolute;inset:12px;pointer-events:none;z-index:1}
+.ai-corners i{position:absolute;width:16px;height:16px;border-color:var(--brand);border-style:solid;opacity:.75}
+.ai-corners i:nth-child(1){top:0;left:0;border-width:2px 0 0 2px;border-top-left-radius:6px}
+.ai-corners i:nth-child(2){top:0;right:0;border-width:2px 2px 0 0;border-top-right-radius:6px}
+.ai-corners i:nth-child(3){bottom:0;left:0;border-width:0 0 2px 2px;border-bottom-left-radius:6px}
+.ai-corners i:nth-child(4){bottom:0;right:0;border-width:0 2px 2px 0;border-bottom-right-radius:6px}
+
+/* ตัวโหลด: วงโคจร 3 ชั้นหมุนสวนทาง + แกนกลางเรืองแสง + เส้นสแกน */
+.ai-load{position:relative;width:150px;height:150px;margin:6px auto 18px}
+.ai-orbit{position:absolute;border-radius:50%;inset:0}
+.ai-orbit.o1{border:2px solid transparent;border-top-color:var(--brand);border-right-color:#00E5FF;animation:aiRot 1.6s linear infinite;filter:drop-shadow(0 0 6px var(--glow))}
+.ai-orbit.o2{inset:14px;border:2px dashed color-mix(in srgb,var(--brand) 55%,transparent);animation:aiRot 6s linear infinite reverse}
+.ai-orbit.o3{inset:26px;border:2px solid transparent;border-bottom-color:#B46CFF;border-left-color:var(--brand);animation:aiRot 2.4s linear infinite reverse}
+.ai-orbit .sat{position:absolute;width:10px;height:10px;border-radius:50%;background:#00E5FF;box-shadow:0 0 10px #00E5FF,0 0 22px #00E5FF;top:-5px;left:calc(50% - 5px)}
+.ai-orbit.o2 .sat{background:#B46CFF;box-shadow:0 0 10px #B46CFF,0 0 22px #B46CFF;width:8px;height:8px;top:auto;bottom:-4px}
+@keyframes aiRot{to{transform:rotate(360deg)}}
+.ai-core{position:absolute;inset:40px;border-radius:50%;background:#fff;display:grid;place-items:center;overflow:hidden;
+  box-shadow:0 0 0 3px var(--brand-soft),0 0 24px var(--glow),inset 0 0 12px rgba(0,0,0,.06);animation:aiPulse 1.8s ease-in-out infinite}
+.ai-core img{width:78%;height:78%;object-fit:contain}
+.ai-core .ic{color:var(--brand);width:36px;height:36px}
+.ai-core::after{content:"";position:absolute;left:0;right:0;height:35%;top:-35%;background:linear-gradient(180deg,transparent,rgba(0,229,255,.45),transparent);animation:aiScan 1.6s ease-in-out infinite}
+@keyframes aiScan{to{top:100%}}
+@keyframes aiPulse{0%,100%{box-shadow:0 0 0 3px var(--brand-soft),0 0 18px var(--glow)}50%{box-shadow:0 0 0 6px var(--brand-soft),0 0 36px var(--glow)}}
+.ai-load::before{content:"";position:absolute;inset:-18px;border-radius:50%;background:radial-gradient(circle,var(--glow) 0%,transparent 65%);animation:aiPulse2 2.2s ease-in-out infinite}
+@keyframes aiPulse2{0%,100%{opacity:.4;transform:scale(.9)}50%{opacity:.9;transform:scale(1.05)}}
+.ai-text{font-weight:700;font-size:17px;color:var(--ink);letter-spacing:.01em}
+.ai-text .cur{display:inline-block;width:2px;height:1em;background:var(--brand);margin-left:4px;vertical-align:-2px;animation:aiBlink 1s steps(1) infinite}
+@keyframes aiBlink{50%{opacity:0}}
+.ai-sub{font-size:13.5px;color:var(--muted);margin-top:2px}
+.ai-bar{height:4px;border-radius:2px;background:var(--brand-soft);overflow:hidden;margin:14px auto 0;width:78%}
+.ai-bar i{display:block;height:100%;width:40%;border-radius:2px;background:linear-gradient(90deg,transparent,var(--brand),#00E5FF,transparent);animation:aiBar 1.3s ease-in-out infinite}
+@keyframes aiBar{from{transform:translateX(-110%)}to{transform:translateX(260%)}}
+.ai-code{margin-top:10px;font:600 11px/1.4 ui-monospace,"SFMono-Regular",Consolas,monospace;letter-spacing:.14em;color:var(--brand);opacity:.75;min-height:15px}
+
+/* toast: แถบแสงวิ่งด้านล่าง */
+.swal2-popup.swal2-toast.sw-toast{overflow:hidden}
+.swal2-popup.swal2-toast.sw-toast::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:35%;background:linear-gradient(90deg,transparent,var(--brand),#00E5FF,transparent);animation:aiBar 1.6s ease-in-out infinite}
+
+/* สถานะนักเรียน: แขวน / ถอนชื่อ */
+.ch-hold{background:var(--ror-soft);color:var(--ror)}
+.btn-warn{background:var(--ror-soft);color:var(--ror)}
+.swal2-textarea{font-family:inherit!important;border-radius:14px!important;font-size:15px!important}
+.swal2-validation-message{font-family:inherit}
+@media (prefers-reduced-motion:reduce){.swal2-popup.sw-pop::before,.ai-orbit,.ai-core::after{animation:none}}
+.swal2-popup.sw-pop>.ai-corners{position:absolute;z-index:2}
