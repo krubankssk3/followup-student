@@ -104,8 +104,7 @@
   function toast(msg, icon) {
     if (window.Swal && !(window.Swal.isVisible() && !document.querySelector('.swal2-toast'))) {
       var bad = /ไม่สำเร็จ|ไม่ได้|ไม่พบ|ไม่ถูกต้อง|ผิด|เกิน|ก่อน|หมดเวลา|ไม่มี/.test(msg);
-      window.Swal.mixin({ toast: true, position: 'top', timer: 2600, timerProgressBar: false, showConfirmButton: false, customClass: { popup: 'sw-toast' } })
-        .fire({ icon: icon || (bad ? 'warning' : 'success'), title: msg });
+      swalFire({ toast: true, position: 'top', timer: 2600, timerProgressBar: true, showConfirmButton: false, customClass: { popup: 'sw-toast' }, icon: icon || (bad ? 'warning' : 'success'), title: msg });
       return;
     }
     var el = $('toast');
@@ -148,6 +147,12 @@
     }).catch(function () {});
   }
   function hasSwal() { return !!window.Swal; }
+  /** ทุกป๊อปอัปผ่านฟังก์ชันนี้ ให้มีเอฟเฟคเฟดเข้าออกแบบเดียวกัน */
+  function swalFire(o) {
+    o.showClass = o.toast ? { popup: 'sw-tin' } : { popup: 'sw-in' };
+    o.hideClass = o.toast ? { popup: 'sw-tout' } : { popup: 'sw-out' };
+    return window.Swal.fire(o);
+  }
   function loaderHtml(text, sub) {
     var src = logoSrc();
     return '<div class="sw-load"><div class="sw-ring"></div>' + (src ? '<img src="' + esc(src) + '" alt="" onerror="this.style.display=\'none\'">' : '<span class="sw-ic">' + ic('cap', 40) + '</span>') + '</div>' +
@@ -155,12 +160,12 @@
   }
   function loading(text, sub) {
     if (!hasSwal()) return;
-    window.Swal.fire({ html: loaderHtml(text, sub), showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false, customClass: { popup: 'sw-pop' }, backdrop: 'rgba(17,19,42,.5)' });
+    swalFire({ html: loaderHtml(text, sub), showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false, customClass: { popup: 'sw-pop' } });
   }
   function loaded() { if (hasSwal() && window.Swal.isVisible() && !document.querySelector('.swal2-toast')) window.Swal.close(); }
   function confirmBox(o) {
     if (!hasSwal()) return Promise.resolve(window.confirm(o.title + (o.text ? '\n' + o.text : '')));
-    return window.Swal.fire({
+    return swalFire({
       title: o.title, text: o.text || '', icon: o.icon || (o.danger ? 'warning' : 'question'), showCancelButton: true,
       confirmButtonText: o.ok || 'ยืนยัน', cancelButtonText: 'ยกเลิก', reverseButtons: true, focusCancel: !!o.danger,
       customClass: { popup: 'sw-pop', confirmButton: o.danger ? 'sw-danger' : '' }
@@ -168,7 +173,7 @@
   }
   function successBox(title, text) {
     if (!hasSwal()) { toast(title); return; }
-    window.Swal.fire({ icon: 'success', title: title, text: text || '', timer: 1900, showConfirmButton: false, customClass: { popup: 'sw-pop' } });
+    swalFire({ icon: 'success', title: title, text: text || '', timer: 1900, timerProgressBar: true, showConfirmButton: false, customClass: { popup: 'sw-pop' } });
   }
   function skeleton(n) {
     var h = '<div class="group">';
@@ -644,7 +649,7 @@
     h += '<div class="sec"><h2>บัญชีและการตั้งค่า</h2></div><div class="group">';
     h += '<button class="row" data-act="pw-open"><span class="nf-ic">' + ic('lock', 20) + '</span><span class="row-main"><span class="row-t">เปลี่ยนรหัสผ่าน</span><span class="row-s">แนะนำให้เปลี่ยนทุกภาคเรียน</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     h += '<button class="row" data-act="line-open"><span class="nf-ic ok">' + ic('chat', 20) + '</span><span class="row-main"><span class="row-t">' + (u.role === 'student' ? 'LINE ผู้ปกครอง' : 'LINE ส่วนตัว') + '</span><span class="row-s">' + (u.lineLinked ? 'รับแจ้งเตือนผ่าน LINE OA โรงเรียน' : (u.role === 'student' ? 'ให้ผู้ปกครองสแกน QR เพื่อรับแจ้งเตือน' : 'รับแจ้งเตือนงานทาง LINE')) + '</span></span>' + (u.lineLinked ? '<span class="chip ch-ok">เชื่อมแล้ว</span>' : '<span class="chip">ยังไม่เชื่อม</span>') + '</button>';
-    h += '<button class="row" data-act="theme"><span class="nf-ic">' + ic('moon', 20) + '</span><span class="row-main"><span class="row-t">โหมดมืด</span><span class="row-s">ถนอมสายตาตอนกลางคืน</span></span><span class="sw' + (isDark() ? ' on' : '') + '" role="switch" aria-checked="' + isDark() + '"></span></button>';
+    h += '<button class="row" data-act="theme-open"><span class="nf-ic">' + ic('moon', 20) + '</span><span class="row-main"><span class="row-t">สีธีมและเอฟเฟค</span><span class="row-s">เปลี่ยนสี โหมดมืด เอฟเฟคแสง</span></span><span class="theme-swatch-dot"></span></button>';
     h += '<button class="row" data-act="howto"><span class="nf-ic">' + ic('phone', 20) + '</span><span class="row-main"><span class="row-t">เพิ่มไว้ที่หน้าจอโทรศัพท์</span><span class="row-s">เปิดได้เหมือนแอป ไม่ต้องพิมพ์ลิงก์</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     h += '</div>' + manageSection() + '<button class="btn btn-bad btn-block" data-act="logout" style="margin-top:20px">' + ic('logout', 20) + 'ออกจากระบบ</button>';
     h += '<p class="foot">' + FOOT + '<br>เวอร์ชัน ' + esc(C.VERSION || '') + (S.lastSync ? ' / ข้อมูลล่าสุด ' + thTime(S.lastSync) + ' น.' : '') + '</p></main>';
@@ -715,6 +720,7 @@
     else if (k === 'linestatus') inner = shLineStatus();
     else if (k === 'report-config') inner = shReportCfg();
     else if (k === 'logo') inner = shLogo();
+    else if (k === 'themepick') inner = shTheme();
     else if (k === 'reject') inner = shReject();
     else if (k === 'img') inner = shImg();
     else if (k === 'done') inner = '<div class="done-ic">' + ic(S.sheet.icon || 'check', 44) + '</div><h3 class="done-t">' + esc(S.sheet.title) + '</h3><p class="done-s">' + esc(S.sheet.sub) + '</p>' + (S.sheet.next ? '<ol class="next">' + S.sheet.next.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : '') +
@@ -1012,6 +1018,20 @@
       img.onerror = function () { URL.revokeObjectURL(url); reject({ message: 'เปิดรูปนี้ไม่ได้' }); };
       img.src = url;
     });
+  }
+  function shTheme() {
+    var T = window.Theme, cur = T ? T.get() : { hex: '#6E4BC9', fx: true };
+    if (!T) return '<div class="empty">ไม่พบไฟล์ theme.js</div>';
+    var known = T.presets.some(function (p) { return p.hex.toLowerCase() === cur.hex.toLowerCase(); });
+    return '<h3 class="sh-t">สีธีมและเอฟเฟค</h3><p class="sh-s">เลือกแล้วเปลี่ยนทันที ใช้กับเครื่องนี้</p>' +
+      '<div class="theme-prev">' + esc((T.presets.filter(function (p) { return p.hex.toLowerCase() === cur.hex.toLowerCase(); })[0] || { name: 'สีที่เลือกเอง' }).name) + '</div>' +
+      '<div class="swatches">' + T.presets.map(function (p) {
+        return '<button class="swatch" style="background:' + p.hex + '" data-act="theme-pick" data-v="' + p.hex + '" aria-pressed="' + (p.hex.toLowerCase() === cur.hex.toLowerCase()) + '" aria-label="' + esc(p.name) + '" title="' + esc(p.name) + '"></button>';
+      }).join('') + '</div>' +
+      '<label class="color-row"><input type="color" id="themeColor" value="' + esc(cur.hex) + '"><span><b>เลือกสีเอง</b><br><small class="t-muted">' + (known ? 'แตะเพื่อเลือกสีใดก็ได้' : 'กำลังใช้ ' + esc(cur.hex.toUpperCase())) + '</small></span></label>' +
+      '<button class="toggle" data-act="theme-fx" style="margin-bottom:10px"><span><b>เอฟเฟคแสงสี</b><small>แสงเรือง เฟด และประกายวิ่ง ปิดได้ถ้าเครื่องช้า</small></span><span class="sw' + (cur.fx ? ' on' : '') + '"></span></button>' +
+      '<button class="toggle" data-act="theme" style="margin-bottom:14px"><span><b>โหมดมืด</b><small>ถนอมสายตาตอนกลางคืน</small></span><span class="sw' + (isDark() ? ' on' : '') + '"></span></button>' +
+      '<div class="actbar-in"><button class="btn btn-ghost" data-act="theme-reset">ค่าเริ่มต้น</button><button class="btn btn-primary" data-act="close-sheet">เสร็จแล้ว</button></div>';
   }
   function shLogo() {
     var s = S.sheet, src = s.newData !== undefined ? s.newData : logoSrc();
@@ -1585,6 +1605,7 @@
         document.documentElement.setAttribute('data-theme', nt);
         try { localStorage.setItem(THEME_KEY, nt); } catch (err) {}
         render();
+        if (S.sheet && S.sheet.kind === 'themepick') renderSheet();
         break;
       case 'eye':
         var inp = el.parentNode.querySelector('input'), show = inp.type === 'password';
@@ -1741,6 +1762,10 @@
         }).catch(function (err) { loaded(); toast(err.message || 'บันทึกไม่สำเร็จ'); });
         break;
 
+      case 'theme-open': openSheet({ kind: 'themepick' }); break;
+      case 'theme-pick': if (window.Theme) { window.Theme.set(v); haptic(); renderSheet(); } break;
+      case 'theme-fx': if (window.Theme) { window.Theme.setFx(!window.Theme.get().fx); render(); renderSheet(); } break;
+      case 'theme-reset': if (window.Theme) { window.Theme.reset(); render(); renderSheet(); } break;
       case 'line-open': openLine('self'); break;
       case 'line-student':
         var lst = (S.adm.students || []).filter(function (x) { return x.id === id; })[0];
@@ -1875,6 +1900,7 @@
     if (t.id === 'sq' && S.sheet) { S.sheet.sq = t.value; $('sres').innerHTML = stuResults(t.value); return; }
     if (t.id === 'aq') { S.aq = t.value; var al = $('alist'); if (al) al.innerHTML = admStudentRows(); return; }
     if (t.id === 'importTxt' && S.sheet) { S.sheet.txt = t.value; var ip = $('importPrev'); if (ip) ip.innerHTML = importPreview(); return; }
+    if (t.id === 'themeColor' && window.Theme) { window.Theme.set(t.value); return; }
     var rk = t.getAttribute('data-rk');
     if (rk && S.sheet && S.sheet.cfg) { S.sheet.cfg[rk] = t.value; return; }
     var ri = t.getAttribute('data-ri');
@@ -1890,7 +1916,9 @@
   });
 
   document.addEventListener('change', function (e) {
-    var t = e.target, nid = t.getAttribute && t.getAttribute('data-note');
+    var t = e.target;
+    if (t.id === 'themeColor' && window.Theme) { window.Theme.set(t.value); renderSheet(); return; }
+    var nid = t.getAttribute && t.getAttribute('data-note');
     if (!nid) return;
     var c = caseById(nid);
     if (!c || c.note === t.value) return;
