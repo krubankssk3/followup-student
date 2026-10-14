@@ -23,6 +23,10 @@
   #splash .sp-ring{position:absolute;inset:0;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;animation:spsp .9s linear infinite}
   #splash b{font-size:18px;font-weight:600}
   #splash small{opacity:.8}
+  #splash .sp-bar{width:180px;height:6px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden;margin-top:6px}
+  #splash .sp-bar i{display:block;height:100%;width:0;border-radius:3px;background:#fff;animation:spbar 3.5s ease-out forwards}
+  #splash .sp-msg{font-size:13px;opacity:.85;min-height:20px}
+  @keyframes spbar{to{width:100%}}
   @keyframes spsp{to{transform:rotate(360deg)}}
 </style>
 </head>
@@ -30,11 +34,19 @@
 <div id="splash">
   <div class="sp-logo"><div class="sp-ring"></div><img id="spImg" src="icon.svg" alt=""></div>
   <b>ติดตามการแก้ 0 ร มส</b><small>โรงเรียนบ้านละลม</small>
+  <div class="sp-bar"><i></i></div><div class="sp-msg" id="spMsg">กำลังเตรียมระบบ</div>
 </div>
 <script>
   try { var lg = JSON.parse(localStorage.getItem('followup_logo') || 'null'); if (lg && lg.data) document.getElementById('spImg').src = lg.data; } catch (e) {}
-  // ปิดหน้าเปิดแอปทันทีที่ระบบวาดหน้าจอ (ทำงานได้กับ app.js ทุกเวอร์ชัน)
+  // แสดงหน้าเปิดแอปอย่างน้อย SPLASH_MS แล้วจึงปิด (ปรับตัวเลขได้ 3000-5000)
+  var SPLASH_MS = 3500, SPLASH_T0 = Date.now();
+  var spSteps = ['กำลังเตรียมระบบ', 'กำลังเชื่อมต่อเซิร์ฟเวอร์', 'กำลังโหลดข้อมูล', 'พร้อมใช้งาน'];
+  spSteps.forEach(function (t, i) {
+    setTimeout(function () { var m = document.getElementById('spMsg'); if (m) m.textContent = t; }, i * (SPLASH_MS / spSteps.length));
+  });
   function hideSplash() {
+    var wait = SPLASH_MS - (Date.now() - SPLASH_T0);
+    if (wait > 0) { setTimeout(hideSplash, wait); return; }
     var sp = document.getElementById('splash');
     if (!sp || sp.className.indexOf('out') >= 0) return;
     sp.className += ' out';
