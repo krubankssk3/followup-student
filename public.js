@@ -110,7 +110,7 @@
 
     charts.push(new Chart($('cStatus'), {
       type: 'doughnut',
-      data: { labels: ['กำลังแก้', 'รอตรวจ/อนุมัติ', 'แก้สำเร็จ', 'เรียนซ้ำ'], datasets: [{ data: [st.doing, st.review, st.done, st.repeat], backgroundColor: [ror, brand, ok, zero], borderWidth: 0, hoverOffset: 8 }] },
+      data: { labels: ['กำลังแก้', 'รอตรวจ/อนุมัติ', 'แก้สำเร็จ', 'เรียนซ้ำ', 'แขวนการติดตาม'], datasets: [{ data: [st.doing, st.review, st.done, st.repeat, st.hold || 0], backgroundColor: [ror, brand, ok, zero, '#9AA0B8'], borderWidth: 0, hoverOffset: 8 }] },
       options: Object.assign({}, base, { cutout: '62%' })
     }));
 
