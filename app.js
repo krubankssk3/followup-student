@@ -50,6 +50,7 @@
     chart: '<path d="M3 3v18h18"/><path d="M7 15v-4M12 15V7M17 15v-6"/>',
     file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
     seal: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
     chat: '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.3 9.6 9.6 0 0 1-3.4-.6L3 21l1.9-4.6A8 8 0 0 1 3 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/>',
     moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>',
@@ -690,6 +691,7 @@
   function tabsFor(role) {
     if (role === 'student') return [['home', 'หน้าหลัก', 'home'], ['notif', 'แจ้งเตือน', 'bell'], ['me', 'ฉัน', 'user']];
     if (role === 'teacher') return [['home', 'งานของฉัน', 'home'], ['students', 'นักเรียน', 'users'], ['notif', 'แจ้งเตือน', 'bell'], ['me', 'ฉัน', 'user']];
+    if (role === 'admin') return [['home', 'ภาพรวม', 'chart'], ['students', 'ติดตาม', 'users'], ['approve', 'อนุมัติ', 'seal'], ['report', 'รายงาน', 'printer'], ['manage', 'จัดการ', 'settings'], ['me', 'ฉัน', 'user']];
     return [['home', 'ภาพรวม', 'chart'], ['students', 'นักเรียน', 'users'], ['approve', 'อนุมัติ', 'seal'], ['report', 'รายงาน', 'printer'], ['me', 'ฉัน', 'user']];
   }
   function navHtml() {
@@ -710,6 +712,7 @@
     else if (t === 'me') h = vMe();
     else if (role === 'student') h = vStudentHome();
     else if (role === 'teacher') h = t === 'students' ? vTeacherStudents() : vTeacherHome();
+    else if (t === 'manage') h = vManage();
     else h = t === 'students' ? vTeacherStudents() : (t === 'approve' ? vApprove() : (t === 'report' ? vReportTab() : vMeasureHome()));
     return h + navHtml();
   }
@@ -1272,7 +1275,8 @@
         { k: 'advisorClass', label: 'ครูที่ปรึกษาห้อง', ph: 'เช่น ม.2/1 เว้นว่างถ้าไม่ได้เป็นที่ปรึกษา' },
         { k: 'active', label: 'เปิดใช้งาน', type: 'switch', hint: 'ปิดเมื่อครูย้ายหรือไม่ได้ใช้แล้ว' }
       ],
-      extra: u && isAdmin() ? '<button class="btn btn-ghost btn-block" data-act="adm-reset" data-kind="user" data-id="' + esc(u.id) + '" style="margin-bottom:10px">' + ic('lock', 20) + 'รีเซ็ตรหัสผ่าน</button>' : ''
+      extra: u && isAdmin() ? '<button class="btn btn-ghost btn-block" data-act="adm-reset" data-kind="user" data-id="' + esc(u.id) + '" style="margin-bottom:10px">' + ic('lock', 20) + 'รีเซ็ตรหัสผ่าน</button>' +
+        (u.id !== S.user.id ? '<button class="btn btn-bad btn-block" data-act="user-delete" data-id="' + esc(u.id) + '" style="margin-bottom:10px">' + ic('x', 20) + 'ลบบัญชีนี้</button>' : '') : ''
     });
   }
   function studentForm(st) {
@@ -1305,7 +1309,7 @@
     if (st.trackStatus) h += '<button class="btn btn-primary btn-block" data-act="stu-status" data-v="ACTIVE" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('refresh', 20) + 'กลับมาติดตามตามปกติ</button>';
     if (st.trackStatus !== 'SUSPENDED') h += '<button class="btn btn-warn btn-block" data-act="stu-status" data-v="SUSPENDED" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('clock', 20) + 'แขวนการติดตาม</button>';
     if (st.trackStatus !== 'WITHDRAWN') h += '<button class="btn btn-bad btn-block" data-act="stu-status" data-v="WITHDRAWN" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('logout', 20) + 'ถอนชื่อ (ย้าย ลาออก พ้นสภาพ)</button>';
-    if (isAdmin()) h += '<button class="btn btn-ghost btn-block" data-act="stu-delete" data-id="' + esc(st.id) + '" style="margin-bottom:10px;color:var(--zero)">' + ic('x', 20) + 'ลบออกจากระบบถาวร</button>';
+    if (isAdmin()) h += '<button class="btn btn-ghost btn-block" data-act="stu-delete" data-id="' + esc(st.id) + '" style="margin-bottom:10px;color:var(--zero)">' + ic('x', 20) + 'ลบนักเรียนคนนี้</button>';
     return h;
   }
   function askReason(o) {
@@ -1341,16 +1345,67 @@
       }).catch(function (e) { loaded(); toast(e.message || 'บันทึกไม่สำเร็จ'); });
     });
   }
+  function afterDelete(kind, filterFn, title, sub) {
+    loaded(); haptic();
+    S.adm[kind] = (S.adm[kind] || []).filter(filterFn);
+    S.students = null; closeSheet(); render(); S.lastSync = 0; refresh(true);
+    successBox(title, sub);
+  }
   function deleteStudent(id) {
     var st = (S.adm.students || []).filter(function (x) { return x.id === id; })[0] || { name: id };
-    confirmBox({ title: 'ลบ ' + st.name + ' ถาวร?', text: 'ใช้กับรายชื่อที่กรอกผิดหรือซ้ำเท่านั้น ถ้ามีประวัติ 0 ร มส ระบบจะไม่ให้ลบ', ok: 'ลบถาวร', danger: true }).then(function (ok) {
-      if (!ok) return;
+    var run = function (force) {
       loading('กำลังลบ');
-      API.call('adminDeleteStudent', { id: id }).then(function () {
-        loaded(); S.adm.students = (S.adm.students || []).filter(function (x) { return x.id !== id; });
-        closeSheet(); render(); successBox('ลบแล้ว', st.name);
-      }).catch(function (e) { loaded(); toast(e.message || 'ลบไม่สำเร็จ'); });
-    });
+      API.call('adminDeleteStudent', { id: id, force: !!force }).then(function (d) {
+        afterDelete('students', function (x) { return x.id !== id; }, 'ลบนักเรียนแล้ว', st.name + (d.cases ? ' พร้อมรายการ ' + d.cases + ' รายการ' : ''));
+      }).catch(function (e) {
+        loaded();
+        if (e.error !== 'HAS_CASES') { toast(e.message || 'ลบไม่สำเร็จ'); return; }
+        confirmBox({ title: 'ลบพร้อมประวัติทั้งหมด?', text: e.message + ' ถ้าต้องการเก็บประวัติไว้ ให้ใช้ ถอนชื่อ แทน', ok: 'ลบทั้งหมด', danger: true })
+          .then(function (ok) { if (ok) run(true); });
+      });
+    };
+    confirmBox({ title: 'ลบ ' + st.name + '?', text: 'ลบออกจากระบบถาวร', ok: 'ลบ', danger: true }).then(function (ok) { if (ok) run(false); });
+  }
+  function pickTeacher(excludeId, title, text) {
+    var opts = {};
+    (S.adm.users || []).forEach(function (u) { if (u.id !== excludeId && u.active) opts[u.id] = u.name + ' (' + roleName(u.role) + ')'; });
+    if (!hasSwal()) return Promise.resolve(null);
+    return swalFire({ title: title, text: text, icon: 'warning', input: 'select', inputOptions: opts, inputPlaceholder: 'เลือกครูที่รับโอน',
+      showCancelButton: true, confirmButtonText: 'โอนแล้วลบ', cancelButtonText: 'ยกเลิก', reverseButtons: true,
+      customClass: { popup: 'sw-pop', confirmButton: 'sw-danger' },
+      inputValidator: function (v) { if (!v) return 'เลือกครูที่จะรับโอนก่อน'; }
+    }).then(function (r) { return r.isConfirmed ? r.value : null; });
+  }
+  function deleteUser(id) {
+    var u = (S.adm.users || []).filter(function (x) { return x.id === id; })[0] || { name: id };
+    var run = function (to) {
+      loading('กำลังลบบัญชี');
+      API.call('adminDeleteUser', { id: id, transferTo: to || '' }).then(function (d) {
+        afterDelete('users', function (x) { return x.id !== id; }, 'ลบบัญชีแล้ว', u.name + (to ? ' โอนรายวิชา ' + d.subjects + ' และรายการ ' + d.cases + ' แล้ว' : ''));
+        S.adm.subjects = null;
+      }).catch(function (e) {
+        loaded();
+        if (e.error !== 'HAS_REFS') { toast(e.message || 'ลบไม่สำเร็จ'); return; }
+        pickTeacher(id, 'โอนงานก่อนลบ', e.message).then(function (t) { if (t) run(t); });
+      });
+    };
+    confirmBox({ title: 'ลบบัญชี ' + u.name + '?', text: 'เข้าสู่ระบบไม่ได้อีก ถ้าเพียงย้ายออกชั่วคราว ให้ปิด เปิดใช้งาน แทน', ok: 'ลบบัญชี', danger: true })
+      .then(function (ok) { if (ok) run(''); });
+  }
+  function deleteSubject(code) {
+    var sj = (S.adm.subjects || []).filter(function (x) { return x.code === code; })[0] || { code: code, name: '' };
+    var run = function (force) {
+      loading('กำลังลบรายวิชา');
+      API.call('adminDeleteSubject', { code: code, force: !!force }).then(function (d) {
+        afterDelete('subjects', function (x) { return x.code !== code; }, 'ลบรายวิชาแล้ว', sj.code + ' ' + sj.name + (d.cases ? ' พร้อมรายการ ' + d.cases + ' รายการ' : ''));
+      }).catch(function (e) {
+        loaded();
+        if (e.error !== 'HAS_CASES') { toast(e.message || 'ลบไม่สำเร็จ'); return; }
+        confirmBox({ title: 'ลบพร้อมรายการทั้งหมด?', text: e.message + ' ถ้าแค่ไม่ใช้แล้ว ให้ปิด เปิดใช้งาน แทนเพื่อเก็บประวัติ', ok: 'ลบทั้งหมด', danger: true })
+          .then(function (ok) { if (ok) run(true); });
+      });
+    };
+    confirmBox({ title: 'ลบรายวิชา ' + sj.code + '?', text: sj.name, ok: 'ลบ', danger: true }).then(function (ok) { if (ok) run(false); });
   }
   function teacherOptions() {
     return (S.adm.users || []).filter(function (u) { return u.active && u.role !== 'admin'; }).map(function (u) { return [u.id, u.name]; });
@@ -1368,7 +1423,8 @@
         { k: 'credit', label: 'หน่วยกิต', type: 'number' },
         { k: 'teacherId', label: 'ครูผู้สอน', type: 'select', options: users, hint: users.length ? '' : 'กำลังโหลดรายชื่อครู' },
         { k: 'active', label: 'เปิดใช้งาน', type: 'switch' }
-      ]
+      ],
+      extra: sj && isAdmin() ? '<button class="btn btn-bad btn-block" data-act="subj-delete" data-id="' + esc(sj.code) + '" style="margin-bottom:10px">' + ic('x', 20) + 'ลบรายวิชานี้</button>' : ''
     });
     loadAdm('users');
   }
@@ -1512,7 +1568,27 @@
     if (!list.length) h += '<div class="group"><div class="empty">ยังไม่มีรายวิชา กดเพิ่มรายวิชาด้านล่าง</div></div>';
     return h + '</main><button class="fab no-print" data-act="adm-subj-new">' + ic('plus') + 'เพิ่มรายวิชา</button>';
   }
-  function manageSection() {
+  function vManage() {
+    ['users', 'students', 'subjects'].forEach(function (k) { if (!S.adm[k] && !S['ld_' + k]) { S['ld_' + k] = 1; loadAdm(k, true); } });
+    var n = function (k) { return S.adm[k] ? S.adm[k].length : '…'; };
+    var stu = S.adm.students || [];
+    var held = stu.filter(function (x) { return x.trackStatus; }).length;
+    var card = function (k, icon, title, sub, btns) {
+      return '<div class="mg-card"><button class="mg-head" data-act="adm-open" data-v="' + k + '"><span class="mg-ic">' + ic(icon, 24) + '</span><span class="mg-t"><b>' + title + '</b><small>' + sub + '</small></span><span class="mg-n">' + n(k) + '</span></button>' +
+        '<div class="mg-act">' + btns + '</div></div>';
+    };
+    var h = header('จัดการข้อมูล', 'ผู้ดูแลระบบ เพิ่ม แก้ไข และลบข้อมูลทั้งหมด', refreshBtn(''));
+    h += '<main class="main"><div class="mg-grid">' +
+      card('users', 'users', 'ครูและเจ้าหน้าที่', 'บทบาท ห้องที่ปรึกษา รหัสผ่าน',
+        '<button class="btn btn-primary" data-act="mg-add" data-v="users">' + ic('plus', 18) + 'เพิ่มครู</button><button class="btn btn-ghost" data-act="adm-open" data-v="users">แก้ไข / ลบ</button>') +
+      card('students', 'user', 'นักเรียน', held ? 'แขวนหรือถอนชื่อ ' + held + ' คน' : 'ข้อมูลนักเรียนและผู้ปกครอง',
+        '<button class="btn btn-primary" data-act="mg-add" data-v="students">' + ic('plus', 18) + 'เพิ่ม</button><button class="btn btn-ghost" data-act="mg-import">' + ic('file', 18) + 'นำเข้า Excel</button><button class="btn btn-ghost" data-act="adm-open" data-v="students">แก้ไข / ลบ</button>') +
+      card('subjects', 'file', 'รายวิชา', 'รหัสวิชา ระดับชั้น ครูผู้สอน',
+        '<button class="btn btn-primary" data-act="mg-add" data-v="subjects">' + ic('plus', 18) + 'เพิ่มรายวิชา</button><button class="btn btn-ghost" data-act="adm-open" data-v="subjects">แก้ไข / ลบ</button>') +
+      '</div>' + manageSection(true) + '</main>';
+    return h;
+  }
+  function manageSection(skipData) {
     var u = S.user, rows = [];
     if (isManager()) {
       rows.push(['users', 'users', 'ครูและเจ้าหน้าที่', isAdmin() ? 'เพิ่มครู กำหนดบทบาท รีเซ็ตรหัส' : 'ดูรายชื่อครู']);
@@ -1526,8 +1602,9 @@
     } else if (u.role === 'teacher' && u.advisorClass) {
       rows.push(['students', 'user', 'นักเรียนห้อง ' + u.advisorClass, 'รีเซ็ตรหัสเมื่อนักเรียนลืม']);
     }
+    if (skipData) rows = rows.filter(function (r) { return ['users', 'students', 'subjects'].indexOf(r[0]) < 0; });
     if (!rows.length) return '';
-    return '<div class="sec"><h2>จัดการระบบ</h2></div><div class="group">' + rows.map(function (r) {
+    return '<div class="sec"><h2>' + (skipData ? 'ตั้งค่าและเครื่องมือ' : 'จัดการระบบ') + '</h2></div><div class="group">' + rows.map(function (r) {
       return '<button class="row" data-act="adm-open" data-v="' + r[0] + '"><span class="nf-ic">' + ic(r[1], 20) + '</span><span class="row-main"><span class="row-t">' + esc(r[2]) + '</span><span class="row-s">' + esc(r[3]) + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     }).join('') + '</div>';
   }
@@ -1827,6 +1904,14 @@
       case 'astat': S.astat = v; render(); break;
       case 'stu-status': setStudentStatus(id, v); break;
       case 'stu-delete': deleteStudent(id); break;
+      case 'user-delete': deleteUser(id); break;
+      case 'subj-delete': deleteSubject(id); break;
+      case 'mg-add':
+        if (v === 'users') userForm(null);
+        else if (v === 'students') studentForm(null);
+        else { loadAdm('users'); subjectForm(null); }
+        break;
+      case 'mg-import': openSheet({ kind: 'import', txt: '' }); break;
       case 'form-chip': s.values[el.getAttribute('data-k')] = v; renderSheet(); break;
       case 'form-sw': var fk = el.getAttribute('data-k'); s.values[fk] = !s.values[fk]; renderSheet(); break;
       case 'form-save': saveForm(el); break;
