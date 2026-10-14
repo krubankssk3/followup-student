@@ -774,3 +774,33 @@ html.fx .fab{position:fixed}
 .pop-theme{padding:14px 12px 12px}
 .pop-sw{grid-template-columns:repeat(5,1fr);gap:10px;padding:0 4px;margin-bottom:12px}
 @media (min-width:1024px){.hdr-tools{top:22px;right:22px}}
+
+/* ===== ค้นหารวม ===== */
+.top.hero .greet{margin-right:200px}
+@media (max-width:599px){.top.hero .greet{margin-bottom:10px}}
+.pop-search{padding:12px 10px 10px}
+.gs-box{display:flex;align-items:center;gap:8px;margin:0 4px 8px;padding:0 12px;height:48px;border-radius:14px;background:var(--surface-2);border:1.5px solid transparent;color:var(--muted);transition:border-color .15s}
+.gs-box:focus-within{border-color:var(--brand);background:var(--surface)}
+.gs-box input{flex:1;min-width:0;border:0;background:none;font:inherit;font-size:16px;color:var(--ink);outline:none;height:100%}
+.gs-box input::-webkit-search-cancel-button{-webkit-appearance:none}
+.gs-kbd{font:inherit;font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.gs-res{min-height:60px}
+.gs-res .pop-sec small{font-weight:500;color:var(--muted);margin-left:4px}
+.gs-res .pn{padding:7px 8px}
+.gs-res .avatar{flex:none;width:44px;height:44px;font-size:15px}
+.gs-stamp{flex:none;width:44px;display:grid;place-items:center}
+
+.gs-r:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+.gs-res mark{background:hsla(48,100%,60%,.45);color:inherit;border-radius:3px;padding:0 1px}
+.gs-hint{display:flex;align-items:center;gap:12px;padding:12px 10px 8px;color:var(--muted);line-height:1.5}
+.gs-hint small b{color:var(--ink)}
+.gs-chips{display:flex;flex-wrap:wrap;gap:6px;padding:2px 8px 6px}
+.gs-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:13.5px;cursor:pointer}
+.gs-chip:hover{background:var(--surface-2)}
+.gs-clear{color:var(--muted);border-style:dashed}
+.gs-more{font-size:13px;color:var(--muted);padding:4px 10px 6px}
+@media (max-width:420px){.hdr-tools{gap:6px;right:10px}.tb{width:38px;height:38px}.top.hero .greet{margin-right:178px}}
+.bk-keep{display:inline-flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.bk-keep .chip{border:0;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;padding:3px 10px}
+.bk-list{max-height:260px;overflow:auto}
+.bk-list a.row{text-decoration:none;color:inherit}
