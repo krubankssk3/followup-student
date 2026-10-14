@@ -97,7 +97,7 @@
   function drawCharts(d) {
     var Chart = window.Chart;
     var ink = css('--ink'), muted = css('--muted'), line = css('--line');
-    var brand = '#5B5BD6', violet = '#8A4FBF', ok = css('--ok'), zero = css('--zero'), ror = css('--ror'), ms = css('--ms');
+    var brand = css('--brand') || '#5B5BD6', violet = '#8A4FBF', ok = css('--ok'), zero = css('--zero'), ror = css('--ror'), ms = css('--ms');
     Chart.defaults.font.family = '"IBM Plex Sans Thai","Noto Sans Thai",Tahoma,sans-serif';
     Chart.defaults.color = muted;
     Chart.defaults.borderColor = line;
