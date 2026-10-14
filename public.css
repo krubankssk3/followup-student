@@ -30,3 +30,9 @@
 .rate{display:flex;align-items:center;gap:16px}
 .pub-note{text-align:center;font-size:13px;color:var(--muted);margin-top:18px;line-height:1.6}
 .pub-empty{background:var(--surface);border-radius:22px;padding:40px 20px;text-align:center;color:var(--muted);margin-top:16px;box-shadow:var(--shadow-sm)}
+.pub-top button{width:38px;height:38px;padding:0;justify-content:center}
+.pub-cta{position:relative;z-index:1;margin-top:18px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.pub-btn{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;border-radius:999px;background:#fff;color:var(--brand);font-weight:700;font-size:17px;text-decoration:none;box-shadow:0 10px 30px rgba(0,0,0,.18);transition:transform .15s}
+.pub-btn:hover{transform:translateY(-2px)}
+.pub-cta span{font-size:13.5px;opacity:.85}
+.pub-hero{padding-bottom:86px}
