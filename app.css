@@ -629,3 +629,77 @@ html.fx .sw-load::before{content:"";position:absolute;inset:-14px;border-radius:
 .swal2-validation-message{font-family:inherit}
 @media (prefers-reduced-motion:reduce){.swal2-popup.sw-pop::before,.ai-orbit,.ai-core::after{animation:none}}
 .swal2-popup.sw-pop>.ai-corners{position:absolute;z-index:2}
+
+/* =====================================================================
+   Step 9: จอใหญ่ (คอมพิวเตอร์ / แท็บเล็ตแนวนอน) — มือถือยังเหมือนเดิม
+   ===================================================================== */
+.nav-brand,.nav-user{display:none}
+@media (min-width:1024px){
+  :root{--side:264px}
+  .app{max-width:none;min-height:100vh}
+  .app.has-nav{padding-left:var(--side)}
+
+  /* แถบเมนูด้านซ้าย */
+  .nav{left:16px;right:auto;top:16px;bottom:16px;width:calc(var(--side) - 32px);max-width:none;transform:none;display:flex;flex-direction:column;padding:18px 12px;border-radius:26px}
+  .nav-brand{display:flex;align-items:center;gap:10px;padding:4px 8px 18px;border-bottom:1px solid var(--line);margin-bottom:12px}
+  .nav-brand img,.nav-brand .nb-ic{width:44px;height:44px;border-radius:50%;background:#fff;object-fit:contain;padding:4px;flex:none;display:grid;place-items:center;color:var(--brand);box-shadow:0 4px 12px var(--glow)}
+  .nav-brand b{display:block;font-size:14.5px;line-height:1.3}
+  .nav-brand small{display:block;font-size:12px;color:var(--muted)}
+  .nav-in{flex-direction:column;gap:4px;max-width:none;margin:0;flex:1}
+  .nav button{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;min-height:50px;padding:0 10px;border-radius:14px;font-size:15px}
+  .nav button:hover{background:var(--surface-2)}
+  .nav .pill{width:40px;height:36px;border-radius:12px}
+  .badge{top:50%;left:auto;right:12px;transform:translateY(-50%)}
+  .nav-user{display:flex;align-items:center;gap:10px;padding:14px 8px 4px;border-top:1px solid var(--line)}
+  .nav-user .avatar{width:40px;height:40px;font-size:13px;border-radius:12px}
+  .nav-user b{display:block;font-size:13.5px;line-height:1.3;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nav-user small{display:block;font-size:12px;color:var(--muted)}
+
+  /* หัวหน้าจอและเนื้อหา */
+  .top{padding:18px 32px}
+  .top.hero{margin:16px 24px 0 8px;border-radius:28px;padding:28px 72px 34px 32px}
+  .top.hero .top-h{font-size:28px!important}
+  .hero-ref{top:22px;right:22px}
+  .top.col .search{max-width:640px}
+  .main{max-width:1200px;margin:0 auto;padding:24px 32px 64px}
+  .tally{gap:16px}
+  .tally-i{padding:22px 12px 16px}
+  .focus{padding:24px}
+  .group.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .group.cols>.row{border-right:1px solid var(--line)}
+  .group.cols>.row:nth-child(2n){border-right:0}
+  .ev{grid-template-columns:repeat(5,1fr)}
+  .paper{max-width:860px;margin:0 auto}
+  .papers{max-width:860px;margin:0 auto}
+
+  /* ปุ่มลอยและแถบปุ่มล่าง */
+  .fab{bottom:28px;right:32px}
+  .actbar{left:var(--side);padding:14px 32px 18px}
+  .actbar-in,.actbar-hint{max-width:720px}
+  .toast{bottom:32px;left:calc(50% + var(--side) / 2)}
+
+  /* แผ่นด้านล่าง → กล่องกลางจอ */
+  .sheet-bg{align-items:center;padding:24px}
+  .sheet{max-width:600px;border-radius:26px;max-height:88vh;padding:10px 26px 26px;animation:pop .25s cubic-bezier(.2,.9,.3,1.2)}
+  .grab{display:none}
+  @keyframes pop{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:none}}
+
+  /* หน้าเข้าสู่ระบบแบบแบ่งสองฝั่ง */
+  .login{display:grid;grid-template-columns:minmax(0,1fr) 460px;grid-template-areas:"top card" "foot foot";align-items:center;column-gap:64px;padding:48px max(48px,calc((100vw - 1200px) / 2)) 28px;min-height:100vh}
+  .login-top{grid-area:top;text-align:left;padding:0}
+  .login-top .emblem{width:132px;height:132px;margin:0 0 22px}
+  .lg-school{font-size:20px}
+  .lg-h{font-size:clamp(36px,3.3vw,50px);line-height:1.2;margin:6px 0 14px;white-space:nowrap}
+  .login-top::after{content:"ติดตาม ส่งหลักฐาน ตรวจ และอนุมัติผล 0 ร มส ครบในที่เดียว ใช้ได้ทั้งคอมพิวเตอร์และมือถือ";display:block;font-size:17px;opacity:.85;max-width:520px;line-height:1.7}
+  .login-card{grid-area:card;max-width:none;padding:32px 30px}
+  .login .foot{grid-area:foot;text-align:center;margin-top:28px}
+}
+@media (min-width:1440px){
+  .group.cols{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .group.cols>.row:nth-child(2n){border-right:1px solid var(--line)}
+  .group.cols>.row:nth-child(3n){border-right:0}
+}
+@media print{.app{padding-left:0!important}.nav-brand,.nav-user{display:none!important}}
+
+/* แก้: ปุ่มลอยต้องลอยเสมอ แม้เปิดเอฟเฟคประกายแสง */
+html.fx .fab{position:fixed}
