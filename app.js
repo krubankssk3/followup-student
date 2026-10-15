@@ -163,6 +163,13 @@
       }
       if (userOpen) userOpen(popup);
     };
+    if (!o.toast) {
+      // ล็อกหน้าต่าง: ปิดได้เฉพาะปุ่มในหน้าต่าง (ยกเลิก / ตกลง / ✕) ไม่ปิดเมื่อกดพื้นหลังหรือกด Esc
+      if (o.allowOutsideClick === undefined) o.allowOutsideClick = false;
+      if (o.allowEscapeKey === undefined) o.allowEscapeKey = false;
+      if (o.showCloseButton === undefined && (o.showCancelButton || o.input)) o.showCloseButton = true;
+      if (o.closeButtonAriaLabel === undefined) o.closeButtonAriaLabel = 'ปิด';
+    }
     o.showClass = o.toast ? { popup: 'sw-tin' } : { popup: 'sw-in' };
     o.hideClass = o.toast ? { popup: 'sw-tout' } : { popup: 'sw-out' };
     return window.Swal.fire(o);
@@ -570,9 +577,9 @@
     if (!btn && S.pop !== 'search') { S.pop = null; el.innerHTML = ''; return; }
     var W = window.innerWidth, r = btn ? btn.getBoundingClientRect() : { bottom: 6, right: W / 2 + 190, width: 0 };
     var pos = W < 600 ? 'left:10px;right:10px;' : 'right:' + Math.max(10, W - r.right) + 'px;width:380px;';
-    el.className = 'pop-on';
+    el.className = 'pop-on locked';
     el.innerHTML = '<div class="pop pop-' + S.pop + '" role="dialog" style="top:' + Math.round(r.bottom + 10) + 'px;' + pos + '">' +
-      '<i class="pop-arrow" style="right:' + (W < 600 ? Math.max(14, W - r.right + r.width / 2 - 18) : r.width / 2 - 8) + 'px"></i>' + (S.pop === 'notif' ? popNotif() : (S.pop === 'search' ? popSearch() : popTheme())) + '</div>';
+      '<i class="pop-arrow" style="right:' + (W < 600 ? Math.max(14, W - r.right + r.width / 2 - 18) : r.width / 2 - 8) + 'px"></i>' + '<button class="pop-x" data-act="pop-close" aria-label="ปิด" title="ปิด">' + ic('x', 18) + '</button>' + (S.pop === 'notif' ? popNotif() : (S.pop === 'search' ? popSearch() : popTheme())) + '</div>';
     if (S.pop === 'search') { var gi = $('gsq'); if (gi && document.activeElement !== gi) { try { gi.focus(); } catch (e) {} } }
   }
   function heroHeader(title, sub, extra) {
@@ -1204,7 +1211,8 @@
     else if (k === 'img') inner = shImg();
     else if (k === 'done') inner = '<div class="done-ic">' + ic(S.sheet.icon || 'check', 44) + '</div><h3 class="done-t">' + esc(S.sheet.title) + '</h3><p class="done-s">' + esc(S.sheet.sub) + '</p>' + (S.sheet.next ? '<ol class="next">' + S.sheet.next.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : '') +
       '<div class="actbar-in">' + (S.sheet.home ? '<button class="btn btn-primary" data-act="done-home">กลับหน้าแรก</button>' : '') + (S.sheet.again ? '<button class="btn btn-ghost" data-act="new-case">บันทึกคนต่อไป</button>' : '') + (S.sheet.home ? '' : '<button class="btn btn-primary" data-act="close-sheet">' + esc(S.sheet.btn || 'ตกลง') + '</button>') + '</div>';
-    el.innerHTML = '<div class="sheet-bg" data-act="close-sheet"><div class="sheet" data-act="noop" role="dialog" aria-modal="true"><div class="grab"></div>' + inner + '</div></div>';
+    el.innerHTML = '<div class="sheet-bg" data-act="sheet-locked"><div class="sheet" data-act="noop" role="dialog" aria-modal="true"><div class="grab"></div>' +
+      '<button class="sh-x" data-act="close-sheet" aria-label="ปิดหน้าต่าง" title="ปิด">' + ic('x', 20) + '</button>' + inner + '</div></div>';
     document.body.style.overflow = 'hidden';
     if (k === 'line' && S.sheet.code) drawQR();
     if (k === 'sig' && S.sheet.mode === 'draw') initSigPad();
@@ -1336,6 +1344,17 @@
       processLogo(f).then(function (d) { S.sheet.newData = d; renderSheet(); }).catch(function (e) { toast(e.message); });
     });
     document.body.appendChild(lg);
+    var fi = document.createElement('input');
+    fi.type = 'file'; fi.id = 'fImp'; fi.hidden = true;
+    fi.addEventListener('change', function () { impFile(fi.files && fi.files[0]); });
+    document.body.appendChild(fi);
+    document.addEventListener('dragover', function (e) { if (S.sheet && S.sheet.kind === 'import') { e.preventDefault(); var d = $('impDrop'); if (d) d.className = 'imp-drop over'; } });
+    document.addEventListener('dragleave', function (e) { var d = $('impDrop'); if (d && e.target === d) d.className = 'imp-drop'; });
+    document.addEventListener('drop', function (e) {
+      if (!S.sheet || S.sheet.kind !== 'import') return;
+      e.preventDefault(); var d = $('impDrop'); if (d) d.className = 'imp-drop';
+      impFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+    });
     var sp = document.createElement('input');
     sp.type = 'file'; sp.id = 'fStuPh'; sp.accept = 'image/*'; sp.hidden = true;
     sp.addEventListener('change', function () {
@@ -2224,33 +2243,255 @@
     }).catch(function (e) { loaded(); setBusy(btn, false); fail(e.message || 'บันทึกไม่สำเร็จ'); });
   }
 
-  /* import */
-  function parseImport(txt) {
-    var rows = [], bad = [];
-    String(txt || '').split(/\r?\n/).forEach(function (line, i) {
-      if (!line.trim()) return;
-      var c = line.indexOf('\t') >= 0 ? line.split('\t') : line.split(',');
-      c = c.map(function (x) { return x.trim(); });
-      if (!/^\d+$/.test(c[0])) { if (i > 0 || rows.length) bad.push(i + 1); return; }
-      rows.push({ studentId: c[0], prefix: c[1] || '', firstName: c[2] || '', lastName: c[3] || '', classroom: c[4] || '', number: c[5] || '', parentName: c[6] || '', parentPhone: c[7] || '' });
+  /* import : วางข้อความ หรือเลือกไฟล์ Excel / CSV / PDF ระบบจับคอลัมน์ให้อัตโนมัติ */
+  var IMP_PREFIX = /^(เด็กชาย|เด็กหญิง|ด\.\s?ช\.?|ด\.\s?ญ\.?|นางสาว|น\.\s?ส\.?|นาย|นาง|Mr\.?|Miss|Mrs\.?)\s*/;
+  var IMP_PREFIX_NORM = { 'เด็กชาย': 'ด.ช.', 'เด็กหญิง': 'ด.ญ.', 'ด.ช': 'ด.ช.', 'ด.ญ': 'ด.ญ.', 'น.ส.': 'นางสาว', 'น.ส': 'นางสาว' };
+  function impPrefix(p) { p = String(p || '').replace(/\s+/g, ''); return IMP_PREFIX_NORM[p] || p; }
+  function impSplitName(full) {
+    var t = String(full || '').replace(/\s+/g, ' ').trim(), m = t.match(IMP_PREFIX), pre = '';
+    if (m) { pre = impPrefix(m[1]); t = t.slice(m[0].length).trim(); }
+    var parts = t.split(' ');
+    return { prefix: pre, firstName: parts.shift() || '', lastName: parts.join(' ') };
+  }
+  /** แปลงชื่อห้องเป็นรูปแบบเดียวกัน เช่น "2/1" "ม. 2/1" "มัธยมศึกษาปีที่ 2/1" "ม.2-1" → ม.2/1 */
+  function impClass(v) {
+    var t = String(v || '').trim(), m = t.match(/(?:ม\.?|มัธยมศึกษาปีที่|มัธยม|ชั้น|M\.?)?\s*([1-6])\s*[\/\-_.]\s*(\d{1,2})/i);
+    return m ? 'ม.' + m[1] + '/' + (+m[2]) : t;
+  }
+  function impFindClass(text) {
+    var m = String(text || '').match(/(?:ม\.|มัธยมศึกษาปีที่|ชั้นมัธยมศึกษาปีที่|ชั้น\s*ม\.)\s*([1-6])\s*\/\s*(\d{1,2})/);
+    return m ? 'ม.' + m[1] + '/' + (+m[2]) : '';
+  }
+  var IMP_HEAD = [
+    ['id', /เลขประจำตัว|เลขประจําตัว|รหัสนักเรียน|เลขประจำตัวนักเรียน|student\s*id|^id$/i],
+    ['phone', /โทร|เบอร์|phone|tel/i],
+    ['parent', /ผู้ปกครอง|parent/i],
+    ['full', /ชื่อ\s*[-–]?\s*(นาม)?สกุล|ชื่อ.{0,3}สกุล|^name$|full\s*name/i],
+    ['prefix', /คำนำหน้า|คํานําหน้า|prefix|title/i],
+    ['last', /นามสกุล|^สกุล$|last\s*name|surname/i],
+    ['first', /^ชื่อ$|ชื่อจริง|first\s*name/i],
+    ['cls', /ห้อง|ชั้น|class|room/i],
+    ['no', /^เลขที่$|^ที่$|^no\.?$|^ลำดับ$|^ลําดับ$/i]
+  ];
+  function impHeader(row) {
+    var map = {}, hits = 0;
+    row.forEach(function (c, j) {
+      var t = String(c == null ? '' : c).trim();
+      if (!t || t.length > 40) return;
+      for (var k = 0; k < IMP_HEAD.length; k++) {
+        var key = IMP_HEAD[k][0];
+        if (map[key] === undefined && IMP_HEAD[k][1].test(t)) { map[key] = j; hits++; return; }
+      }
     });
-    return { rows: rows, bad: bad };
+    return map.id !== undefined && hits >= 2 ? map : null;
+  }
+  /** ตารางข้อมูล (แถว x คอลัมน์) → รายชื่อนักเรียน  ใช้ได้ทั้งข้อความที่วาง ไฟล์ Excel และข้อความจาก PDF */
+  function impFromGrid(grid, ctxCls) {
+    var rows = [], bad = 0, map = null, cls = ctxCls || '';
+    grid.forEach(function (raw) {
+      var r = raw.map(function (x) { return String(x == null ? '' : x).replace(/\s+/g, ' ').trim(); });
+      if (!r.some(function (x) { return x; })) return;
+      if (r[0] === '#SHEET') { map = null; cls = r[1] || ctxCls || ''; return; }
+      var h = impHeader(r);
+      if (h) { map = h; return; }
+      var joined = r.join(' '), fc = impFindClass(joined);
+      var it = null;
+      if (map) {
+        var g = function (k) { return map[k] !== undefined ? r[map[k]] || '' : ''; };
+        var id = g('id').replace(/\D/g, '');
+        if (!/^\d{3,12}$/.test(id)) { if (fc && !/\d{4,}/.test(joined)) cls = fc; else if (joined.length > 3) bad++; return; }
+        it = { studentId: id, prefix: impPrefix(g('prefix')), firstName: g('first'), lastName: g('last'), classroom: impClass(g('cls')), number: g('no').replace(/\D/g, ''), parentName: g('parent'), parentPhone: g('phone').replace(/[^\d]/g, '') };
+        if (g('full')) {
+          var sp = impSplitName((g('prefix') ? g('prefix') + ' ' : '') + g('full')); it.prefix = it.prefix || sp.prefix; it.firstName = it.firstName || sp.firstName; it.lastName = it.lastName || sp.lastName;
+          // PDF มักแยกชื่อกับนามสกุลเป็นคนละช่อง: ช่องถัดไปที่ไม่มีหัวคอลัมน์และเป็นตัวอักษรล้วน ถือเป็นนามสกุล
+          var nx = map.full + 1, used = false;
+          for (var mk in map) if (map[mk] === nx) used = true;
+          if (!it.lastName && r[nx] && !used && !/\d/.test(r[nx]) && /[ก-๙a-z]/i.test(r[nx]) && r[nx].length < 40) it.lastName = r[nx];
+        }
+        else if (it.firstName && !it.prefix) { var sp2 = impSplitName(it.firstName + (it.lastName ? ' ' + it.lastName : '')); if (sp2.prefix) { it.prefix = sp2.prefix; it.firstName = sp2.firstName; it.lastName = it.lastName ? it.lastName : sp2.lastName; } }
+      } else {
+        // ไม่มีหัวตาราง: หาเลขประจำตัว (ตัวเลข 4-12 หลัก) แล้วอ่านคอลัมน์ถัดไปตามลำดับ
+        var k = -1;
+        for (var i = 0; i < r.length; i++) if (/^\d{4,12}$/.test(r[i].replace(/\s/g, ''))) { k = i; break; }
+        if (k < 0) { if (fc) cls = fc; else if (/\d/.test(joined) && joined.length > 3) bad++; return; }
+        var rest = r.slice(k + 1).filter(function (x) { return x !== ''; });
+        it = { studentId: r[k].replace(/\s/g, ''), prefix: '', firstName: '', lastName: '', classroom: '', number: '', parentName: '', parentPhone: '' };
+        if (k > 0 && /^\d{1,3}$/.test(r[k - 1])) it.number = r[k - 1];
+        var nameDone = false, q = 0;
+        if (rest.length && IMP_PREFIX.test(rest[0]) && rest[0].replace(IMP_PREFIX, '').trim() === '') { it.prefix = impPrefix(rest[0]); q = 1; }
+        if (!nameDone && rest[q]) {
+          var sp3 = impSplitName((it.prefix ? it.prefix + ' ' : '') + rest[q]);
+          it.prefix = sp3.prefix || it.prefix; it.firstName = sp3.firstName; it.lastName = sp3.lastName; q++;
+          if (!it.lastName && rest[q] && !/\d/.test(rest[q]) && !/[\/]/.test(rest[q])) { it.lastName = rest[q]; q++; }
+        }
+        for (; q < rest.length; q++) {
+          var x = rest[q];
+          if (!it.classroom && /^(ม\.?\s*)?[1-6]\s*[\/\-]\s*\d{1,2}$|มัธยม/.test(x)) it.classroom = impClass(x);
+          else if (!it.number && /^\d{1,3}$/.test(x)) it.number = x;
+          else if (!it.parentPhone && /^0[\d\-\s]{8,11}$/.test(x)) it.parentPhone = x.replace(/\D/g, '');
+          else if (!it.parentName && /[ก-๙a-z]/i.test(x)) it.parentName = x;
+        }
+      }
+      if (fc && !it.classroom && map) cls = cls || fc;
+      if (!it.classroom) it.classroom = cls;
+      rows.push(it);
+    });
+    // เลขประจำตัวซ้ำในไฟล์: ใช้แถวล่าสุด
+    var seen = {}, out = [];
+    rows.forEach(function (x) { seen[x.studentId] = x; });
+    rows.forEach(function (x) { if (seen[x.studentId] === x) out.push(x); });
+    return { rows: out, bad: bad, dup: rows.length - out.length };
+  }
+  function parseImport(txt) {
+    var grid = String(txt || '').split(/\r?\n/).map(function (line) {
+      if (line.indexOf('\t') >= 0) return line.split('\t');
+      if (line.indexOf(',') >= 0) return line.split(',');
+      var c = line.trim().split(/\s{2,}/);
+      return c.length > 1 ? c : line.trim().split(/\s+/);
+    });
+    var p = impFromGrid(grid, '');
+    var def = impClass(S.sheet && S.sheet.defCls || '');
+    if (def) p.rows.forEach(function (r) { if (!r.classroom) r.classroom = def; });
+    return p;
+  }
+  function impToText(rows) {
+    return rows.map(function (r) { return [r.studentId, r.prefix, r.firstName, r.lastName, r.classroom, r.number, r.parentName, r.parentPhone].join('\t'); }).join('\n');
   }
   function importPreview() {
-    var p = parseImport(S.sheet.txt);
-    if (!p.rows.length) return '<div class="hint" style="margin:8px 0 14px">ยังไม่มีข้อมูล</div>';
-    var noCls = p.rows.filter(function (r) { return !r.classroom || !r.firstName; }).length;
-    return '<div class="group" style="margin:8px 0 14px"><dl class="kv"><dt>พร้อมนำเข้า</dt><dd>' + p.rows.length + ' คน</dd>' +
-      '<dt>ตัวอย่างแถวแรก</dt><dd>' + esc(p.rows[0].prefix + p.rows[0].firstName + ' ' + p.rows[0].lastName + ' ' + p.rows[0].classroom) + '</dd>' +
-      (noCls ? '<dt class="t-bad">ขาดชื่อหรือห้อง</dt><dd class="t-bad">' + noCls + ' แถว</dd>' : '') +
-      (p.bad.length ? '<dt class="t-bad">ข้ามแถวที่เลขประจำตัวไม่ถูกต้อง</dt><dd class="t-bad">แถว ' + p.bad.slice(0, 5).join(', ') + '</dd>' : '') + '</dl></div>';
+    var sh = S.sheet;
+    if (sh.reading) return '<div class="imp-read"><span class="spin"></span>' + esc(sh.reading) + '</div>';
+    var p = parseImport(sh.txt);
+    if (!p.rows.length) return '<div class="hint" style="margin:8px 0 14px">' + (sh.txt && sh.txt.trim() ? 'ยังหาเลขประจำตัวนักเรียนในข้อมูลไม่เจอ ตรวจว่ามีคอลัมน์เลขประจำตัว (ตัวเลข 4-12 หลัก)' : 'ยังไม่มีข้อมูล') + '</div>';
+    var noCls = p.rows.filter(function (r) { return !r.classroom; }).length, noName = p.rows.filter(function (r) { return !r.firstName; }).length;
+    var byCls = {};
+    p.rows.forEach(function (r) { var k = r.classroom || 'ไม่ระบุห้อง'; byCls[k] = (byCls[k] || 0) + 1; });
+    var exist = {}; (S.adm.students || []).forEach(function (x) { exist[x.id] = true; });
+    var upd = p.rows.filter(function (r) { return exist[r.studentId]; }).length;
+    var h = '<div class="imp-sum"><div><b>' + p.rows.length + '</b><span>คนพร้อมนำเข้า</span></div><div><b>' + (p.rows.length - upd) + '</b><span>เพิ่มใหม่</span></div><div><b>' + upd + '</b><span>อัปเดตข้อมูล</span></div></div>';
+    h += '<div class="imp-cls">' + Object.keys(byCls).sort().map(function (k) { return '<span class="chip' + (k === 'ไม่ระบุห้อง' ? ' ch-bad' : ' ch-info') + '">' + esc(k) + ' ' + byCls[k] + ' คน</span>'; }).join('') + '</div>';
+    h += '<div class="tbl-wrap imp-tbl"><table class="p-tbl"><thead><tr><th>เลขประจำตัว</th><th>ชื่อ-สกุล</th><th>ห้อง</th><th>เลขที่</th><th>ผู้ปกครอง</th></tr></thead><tbody>' +
+      p.rows.slice(0, 6).map(function (r) {
+        return '<tr><td>' + esc(r.studentId) + '</td><td class="l">' + esc(r.prefix + r.firstName + ' ' + r.lastName) + '</td><td' + (r.classroom ? '' : ' class="t-bad"') + '>' + esc(r.classroom || 'ไม่มี') + '</td><td>' + esc(r.number || '-') + '</td><td class="l">' + esc(r.parentName || '-') + '</td></tr>';
+      }).join('') + (p.rows.length > 6 ? '<tr><td colspan="5" class="t-muted">และอีก ' + (p.rows.length - 6) + ' คน</td></tr>' : '') + '</tbody></table></div>';
+    var warn = [];
+    if (noCls) warn.push(noCls + ' คนยังไม่มีห้อง ใส่ "ห้องเริ่มต้น" ด้านบน หรือแก้ในช่องข้อความ');
+    if (noName) warn.push(noName + ' คนไม่มีชื่อ');
+    if (p.dup) warn.push('มีเลขประจำตัวซ้ำในไฟล์ ' + p.dup + ' แถว ใช้แถวล่าสุด');
+    if (p.bad) warn.push('ข้าม ' + p.bad + ' แถวที่ไม่ใช่ข้อมูลนักเรียน');
+    if (warn.length) h += '<div class="imp-warn">' + warn.map(function (w) { return '<div>' + ic('alert', 16) + esc(w) + '</div>'; }).join('') + '</div>';
+    return h;
   }
   function shImport() {
-    return '<h3 class="sh-t">นำเข้านักเรียนจาก Excel</h3><p class="sh-s">คัดลอกจาก Excel หรือ Google Sheets แล้ววางในช่องด้านล่าง เรียงคอลัมน์ตามนี้</p>' +
-      '<div class="cols-hint">เลขประจำตัว | คำนำหน้า | ชื่อ | นามสกุล | ห้อง | เลขที่ | ชื่อผู้ปกครอง | เบอร์โทร</div>' +
-      '<textarea class="inp" id="importTxt" style="min-height:160px;font-size:14px" placeholder="12345	ด.ช.	ภูมิ	ใจกล้า	ม.2/1	7	นางสมพร ใจกล้า	0812345678">' + esc(S.sheet.txt || '') + '</textarea>' +
+    var sh = S.sheet;
+    return '<h3 class="sh-t">นำเข้านักเรียน</h3><p class="sh-s">เลือกไฟล์ Excel, CSV หรือ PDF รายชื่อนักเรียน หรือคัดลอกจากตารางมาวาง ระบบจับคอลัมน์ให้อัตโนมัติ</p>' +
+      '<div class="imp-drop" id="impDrop"><div class="imp-btns"><button class="btn btn-primary" data-act="imp-file" data-v="xlsx">' + ic('file', 20) + 'Excel / CSV</button>' +
+      '<button class="btn btn-ghost imp-pdf" data-act="imp-file" data-v="pdf">' + ic('file', 20) + 'PDF</button></div>' +
+      '<small>หรือลากไฟล์มาวางตรงนี้' + (sh.fileName ? ' · ไฟล์ล่าสุด: <b>' + esc(sh.fileName) + '</b>' : '') + '</small></div>' +
+      '<label class="field" style="margin-top:12px"><span class="lbl">ห้องเริ่มต้น (ใช้กับคนที่ในไฟล์ไม่มีห้อง)</span><input class="inp" id="impCls" placeholder="เช่น ม.2/1" value="' + esc(sh.defCls || '') + '"></label>' +
+      '<details class="imp-raw"' + (sh.txt ? '' : ' open') + '><summary>ข้อมูลที่จะนำเข้า (แก้ไขได้)</summary><div class="cols-hint">เลขประจำตัว | คำนำหน้า | ชื่อ | นามสกุล | ห้อง | เลขที่ | ชื่อผู้ปกครอง | เบอร์โทร</div>' +
+      '<textarea class="inp" id="importTxt" style="min-height:140px;font-size:13.5px" placeholder="วางจาก Excel ได้ทั้งแบบมีหัวตารางหรือไม่มี เช่น&#10;เลขที่	เลขประจำตัว	ชื่อ-สกุล&#10;1	12345	ด.ช.ภูมิ ใจกล้า">' + esc(sh.txt || '') + '</textarea></details>' +
       '<div id="importPrev">' + importPreview() + '</div><p class="hint">คนที่มีเลขประจำตัวอยู่แล้วจะอัปเดตข้อมูล ไม่เปลี่ยนรหัสผ่าน คนใหม่ใช้เลขประจำตัวเป็นรหัสผ่านเริ่มต้น</p>' +
-      '<div id="formErr" class="err" role="alert"></div><button class="btn btn-primary btn-block" data-act="import-run">นำเข้า</button>';
+      '<div id="formErr" class="err" role="alert"></div><button class="btn btn-primary btn-block" data-act="import-run"' + (sh.reading ? ' disabled' : '') + '>นำเข้า</button>';
+  }
+  function impRefresh() { var ip = $('importPrev'); if (ip) ip.innerHTML = importPreview(); }
+  function impSetGrid(grid, ctxCls, name) {
+    var p = impFromGrid(grid, ctxCls || '');
+    var sh = S.sheet; if (!sh || sh.kind !== 'import') return;
+    sh.reading = null; sh.fileName = name;
+    if (!p.rows.length) { renderSheet(); toast('ไม่พบเลขประจำตัวนักเรียนในไฟล์นี้', 'warning'); return; }
+    sh.txt = impToText(p.rows); renderSheet(); haptic();
+    toast('อ่านไฟล์แล้ว พบ ' + p.rows.length + ' คน');
+  }
+  function impReadExcel(file) {
+    var go = function () {
+      var fr = new FileReader();
+      fr.onload = function () {
+        try {
+          var wb = window.XLSX.read(new Uint8Array(fr.result), { type: 'array' }), grid = [];
+          wb.SheetNames.forEach(function (n) {
+            var g = window.XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' });
+            // แผ่นงานที่ตั้งชื่อเป็นห้อง (ม.2-1, 2_1, ม.2/1) ใช้เป็นห้องของทุกแถวในแผ่นนั้น
+            var hint = /^(ม\.?\s*|มัธยม(ศึกษาปีที่)?\s*)?[1-6]\s*[\/\-_.]\s*\d{1,2}$/.test(n.trim()) ? impClass(n) : '';
+            grid.push(['#SHEET', hint]);
+            grid = grid.concat(g);
+          });
+          impSetGrid(grid, '', file.name);
+        } catch (e) { S.sheet.reading = null; renderSheet(); toast('อ่านไฟล์ Excel ไม่ได้', 'warning'); }
+      };
+      fr.readAsArrayBuffer(file);
+    };
+    if (/\.csv$/i.test(file.name)) {
+      // CSV: อ่านเป็นข้อความ UTF-8 (ภาษาไทยไม่เพี้ยน) แล้วแยกคอลัมน์เอง
+      var fr2 = new FileReader();
+      fr2.onload = function () {
+        var txt = String(fr2.result || '').replace(/^\uFEFF/, '');
+        var grid = txt.split(/\r?\n/).map(function (line) {
+          var out = [], cur = '', q = false;
+          for (var i = 0; i < line.length; i++) {
+            var ch = line.charAt(i);
+            if (ch === '"') { if (q && line.charAt(i + 1) === '"') { cur += '"'; i++; } else q = !q; }
+            else if ((ch === ',' || ch === ';') && !q) { out.push(cur); cur = ''; }
+            else cur += ch;
+          }
+          out.push(cur); return out;
+        });
+        impSetGrid(grid, '', file.name);
+      };
+      fr2.readAsText(file, 'UTF-8');
+      return;
+    }
+    if (window.XLSX) go();
+    else loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').then(go).catch(function () { S.sheet.reading = null; renderSheet(); toast('โหลดตัวอ่าน Excel ไม่สำเร็จ ตรวจอินเทอร์เน็ต', 'warning'); });
+  }
+  var PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  function impReadPdf(file) {
+    var go = function () {
+      var lib = window.pdfjsLib;
+      lib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
+      new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(new Uint8Array(fr.result)); }; fr.onerror = rej; fr.readAsArrayBuffer(file); })
+        .then(function (buf) { return lib.getDocument({ data: buf }).promise; }).then(function (pdf) {
+        var grid = [], n = pdf.numPages, chain = Promise.resolve();
+        for (var i = 1; i <= Math.min(n, 60); i++) (function (pno) {
+          chain = chain.then(function () {
+            if (S.sheet) { S.sheet.reading = 'กำลังอ่าน PDF หน้า ' + pno + ' / ' + n; impRefresh(); }
+            return pdf.getPage(pno).then(function (pg) { return pg.getTextContent(); }).then(function (tc) {
+              var lines = [];
+              tc.items.forEach(function (it) {
+                if (!it.str || !it.str.trim()) return;
+                var x = it.transform[4], y = it.transform[5], w = it.width || 0, L = null;
+                for (var k = 0; k < lines.length; k++) if (Math.abs(lines[k].y - y) < 3.5) { L = lines[k]; break; }
+                if (!L) { L = { y: y, items: [] }; lines.push(L); }
+                L.items.push({ x: x, w: w, s: it.str, h: Math.abs(it.transform[3]) || 10 });
+              });
+              lines.sort(function (a, b) { return b.y - a.y; });
+              lines.forEach(function (L) {
+                L.items.sort(function (a, b) { return a.x - b.x; });
+                var cells = [], cur = null, endX = -1e9;
+                L.items.forEach(function (it) {
+                  var gap = it.x - endX;
+                  if (cur !== null && gap < it.h * 0.9) cur += (gap > it.h * 0.15 ? ' ' : '') + it.s;
+                  else { if (cur !== null) cells.push(cur); cur = it.s; }
+                  endX = it.x + it.w;
+                });
+                if (cur !== null) cells.push(cur);
+                grid.push(cells);
+              });
+            });
+          });
+        })(i);
+        return chain.then(function () { impSetGrid(grid, '', file.name); if (n > 60) toast('อ่าน 60 หน้าแรกเท่านั้น', 'info'); });
+      }).catch(function () { if (S.sheet) { S.sheet.reading = null; renderSheet(); } toast('อ่าน PDF ไม่ได้ ไฟล์อาจเป็นภาพสแกนหรือมีรหัสผ่าน', 'warning'); });
+    };
+    if (window.pdfjsLib) go();
+    else loadScript(PDFJS + 'pdf.min.js').then(go).catch(function () { S.sheet.reading = null; renderSheet(); toast('โหลดตัวอ่าน PDF ไม่สำเร็จ ตรวจอินเทอร์เน็ต', 'warning'); });
+  }
+  function impFile(file) {
+    if (!file || !S.sheet || S.sheet.kind !== 'import') return;
+    var n = file.name.toLowerCase();
+    if (file.size > 15 * 1024 * 1024) { toast('ไฟล์ใหญ่เกิน 15 MB', 'warning'); return; }
+    if (/\.pdf$/.test(n) || file.type === 'application/pdf') { S.sheet.reading = 'กำลังเปิดไฟล์ PDF'; impRefresh(); impReadPdf(file); }
+    else if (/\.(xlsx|xls|xlsm|csv|ods)$/.test(n)) { S.sheet.reading = 'กำลังอ่านไฟล์ ' + file.name; impRefresh(); impReadExcel(file); }
+    else toast('รองรับไฟล์ Excel, CSV และ PDF', 'warning');
   }
 
   /* views */
@@ -2347,7 +2588,7 @@
     h += '<div class="chips" style="padding-top:6px">' + [['all', 'ทุกสถานะ'], ['normal', 'ติดตามปกติ'], ['SUSPENDED', 'แขวน ' + cnt.SUSPENDED], ['WITHDRAWN', 'ถอนชื่อ ' + cnt.WITHDRAWN]].map(function (x) {
       return '<button class="fchip" data-act="astat" data-v="' + x[0] + '" aria-pressed="' + ((S.astat || 'all') === x[0]) + '">' + x[1] + '</button>';
     }).join('') + '</div>';
-    if (isManager()) h += '<div class="ev-add" style="margin-top:12px"><button class="btn btn-ghost" data-act="adm-stu-new">' + ic('plus', 20) + 'เพิ่มทีละคน</button><button class="btn btn-ghost" data-act="adm-import">' + ic('file', 20) + 'นำเข้าจาก Excel</button></div>';
+    if (isManager()) h += '<div class="ev-add" style="margin-top:12px"><button class="btn btn-ghost" data-act="adm-stu-new">' + ic('plus', 20) + 'เพิ่มทีละคน</button><button class="btn btn-ghost" data-act="adm-import">' + ic('file', 20) + 'นำเข้า Excel / PDF</button></div>';
     else h += '<p class="hint" style="margin:12px 2px 0">แตะชื่อนักเรียนเพื่อรีเซ็ตรหัสผ่านเมื่อนักเรียนลืม</p>';
     return h + '<div id="alist" style="margin-top:14px">' + admStudentRows() + '</div></main>';
   }
@@ -2489,6 +2730,19 @@
   function snapCase(id) { var c = caseById(id); return c ? JSON.parse(JSON.stringify(c)) : null; }
   function restoreCase(snap) { if (snap) upsertCase(snap); }
 
+  /* ---------- ล็อกหน้าต่าง: ปิดได้ด้วยปุ่ม ✕ เท่านั้น ---------- */
+  var lockT = 0;
+  function lockedHint(sel) {
+    var box = document.querySelector(sel);
+    if (box) { box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake'); var x = box.querySelector('.sh-x,.pop-x'); if (x) { x.classList.remove('pulse'); void x.offsetWidth; x.classList.add('pulse'); } }
+    haptic();
+    if (now() - lockT > 2500) { lockT = now(); toast('กดปุ่ม ✕ มุมขวาบนเพื่อปิดหน้าต่างนี้', 'info'); }
+  }
+  // กันปิดแท็บ/รีเฟรช/ออกจากหน้าเว็บ ขณะยังเปิดหน้าต่างค้างไว้
+  window.addEventListener('beforeunload', function (e) {
+    if (S.sheet && S.sheet.kind !== 'done') { e.preventDefault(); e.returnValue = ''; return ''; }
+  });
+
   /* ---------- navigation ---------- */
   function push(v) {
     S.pop = null;
@@ -2504,6 +2758,18 @@
   }
   window.addEventListener('popstate', function () {
     if (S.skipPop) { S.skipPop = false; return; }
+    if (S.sheet || S.pop) {
+      // กดย้อนกลับขณะเปิดหน้าต่าง: คงหน้าเดิมไว้ ต้องกดปุ่ม ✕ ก่อน
+      try { history.pushState({ lock: 1 }, ''); } catch (e) {}
+      lockedHint(S.sheet ? '.sheet' : '.pop');
+      return;
+    }
+    if (!S.stack.length && S.hist === 0 && S.guard) {
+      // อยู่หน้าแรกแล้ว ย้อนกลับอีกครั้งเพื่อออกจากระบบตามปกติ
+      S.guard = false;
+      try { history.back(); } catch (e) {}
+      return;
+    }
     if (S.hist > 0) S.hist--;
     if (S.sheet) closeSheet();
     if (S.stack.length) { S.stack.pop(); window.scrollTo(0, 0); render(); }
@@ -2595,9 +2861,10 @@
   /* ---------- events ---------- */
   document.addEventListener('click', function (e) {
     // กดนอกกล่องแจ้งเตือน/ธีม = ปิด (กดปุ่มอื่นในแถบเครื่องมือได้ทันที)
+    // กล่องแจ้งเตือน/ธีม/ค้นหา ล็อกไว้ ปิดได้ด้วยปุ่ม ✕ หรือกดปุ่มเดิมบนแถบเครื่องมือเท่านั้น
     if (S.pop && e.target.closest && !e.target.closest('.pop') && !e.target.closest('[data-act^="pop-"]')) {
-      S.pop = null; renderMain(); renderPop();
-      if (!e.target.closest('[data-act]')) return;
+      e.preventDefault(); e.stopPropagation(); lockedHint('.pop');
+      return;
     }
     var el = e.target.closest ? e.target.closest('[data-act]') : null;
     if (!el) return;
@@ -2606,6 +2873,8 @@
     if (a === 'noop') return;
     switch (a) {
       case 'close-sheet': closeSheet(); break;
+      case 'sheet-locked': lockedHint('.sheet'); break;
+      case 'pop-locked': lockedHint('.pop'); break;
       case 'tab': S.pop = null; S.tab = v; resetNav(); window.scrollTo(0, 0); render(); break;
       case 'back': goBack(); break;
       case 'refresh': refresh(false); break;
@@ -2887,6 +3156,11 @@
           navigator.clipboard.writeText(S.sheet.pw).then(function () { toast('คัดลอกแล้ว'); }, function () { toast('คัดลอกไม่ได้ จดรหัสไว้แทน'); });
         } catch (err) { toast('คัดลอกไม่ได้ จดรหัสไว้แทน'); }
         break;
+      case 'imp-file':
+        var fim = $('fImp'); fim.value = '';
+        fim.accept = v === 'pdf' ? 'application/pdf,.pdf' : '.xlsx,.xls,.xlsm,.csv,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv';
+        fim.click();
+        break;
       case 'import-run':
         var parsed = parseImport(s.txt), ie = $('formErr');
         if (!parsed.rows.length) { if (ie) ie.textContent = 'วางข้อมูลจาก Excel ก่อน'; return; }
@@ -3101,7 +3375,8 @@
     if (t.id === 'q') { S.q = t.value; var sl = $('slist'); if (sl) sl.innerHTML = studentListHtml(); return; }
     if (t.id === 'sq' && S.sheet) { S.sheet.sq = t.value; $('sres').innerHTML = stuResults(t.value); return; }
     if (t.id === 'aq') { S.aq = t.value; var al = $('alist'); if (al) al.innerHTML = admStudentRows(); return; }
-    if (t.id === 'importTxt' && S.sheet) { S.sheet.txt = t.value; var ip = $('importPrev'); if (ip) ip.innerHTML = importPreview(); return; }
+    if (t.id === 'importTxt' && S.sheet) { S.sheet.txt = t.value; impRefresh(); return; }
+    if (t.id === 'impCls' && S.sheet) { S.sheet.defCls = t.value; impRefresh(); return; }
     if (t.id === 'themeColor' && window.Theme) { window.Theme.set(t.value); return; } // พรีวิวสด ไม่วาดใหม่ระหว่างลาก
     if (t.id === 'resetConfirm' && S.sheet) {
       S.sheet.confirm = t.value;
@@ -3165,8 +3440,9 @@
       return;
     }
     if (e.key !== 'Escape') return;
-    if (S.pop) { S.pop = null; renderMain(); renderPop(); return; }
-    if (S.sheet) closeSheet();
+    // ล็อกหน้าต่าง: Esc ไม่ปิด ต้องกดปุ่ม ✕
+    if (S.sheet) { e.preventDefault(); lockedHint('.sheet'); return; }
+    if (S.pop) { e.preventDefault(); lockedHint('.pop'); }
   });
   window.addEventListener('resize', function () { if (S.pop) renderPop(); });
 
@@ -3198,6 +3474,7 @@
 
   /* ---------- boot ---------- */
   function boot() {
+    try { history.pushState({ guard: 1 }, ''); S.guard = true; } catch (e) {}
     applyTheme();
     applyFavicon();
     if (typeof window.hideSplash === 'function') window.hideSplash();
