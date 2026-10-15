@@ -65,6 +65,8 @@
     palette: '<path d="M12 22a10 10 0 1 1 10-10c0 2.2-1.8 3.5-4 3.5h-1.6a1.9 1.9 0 0 0-1.4 3.2A1.9 1.9 0 0 1 12 22z"/><circle cx="7.5" cy="10.5" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16.5" cy="10.5" r="1.2"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/>',
+    checksq: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/>',
     eyeoff: '<path d="M3 3l18 18"/><path d="M10.6 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.3 4.2M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
   };
   function ic(n, s) {
@@ -324,10 +326,109 @@
       '<span class="row-main"><span class="row-t">' + esc(title) + '</span><span class="row-s">' + esc(sub) + '</span><span class="row-s">' + line + '</span></span>' +
       '<span class="chev">' + ic('chev', 20) + '</span></button>';
   }
-  function avatarHtml(key, name) {
+  function avatarHtml(key, name, pv, cls) {
     var n = 0; key = String(key);
     for (var i = 0; i < key.length; i++) n = (n + key.charCodeAt(i)) % 5;
-    return '<span class="avatar av' + n + '">' + esc(initials(name)) + '</span>';
+    var img = photoOf(key, pv);
+    return '<span class="avatar av' + n + (img ? ' has-ph' : '') + (cls ? ' ' + cls : '') + '"' + (pv ? ' data-ph="' + esc(key) + '"' : '') + '>' +
+      (img ? '<img src="' + esc(img) + '" alt="">' : esc(initials(name))) + '</span>';
+  }
+
+  /* ---------- รูปนักเรียน: โหลดเมื่อจำเป็น เก็บสำเนาในเครื่อง ---------- */
+  var PH_KEY = 'followup_ph', PH_MAX = 160;
+  var PH = (function () { try { var o = JSON.parse(localStorage.getItem(PH_KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } })();
+  var phWant = {}, phBusy = {}, phT = null;
+  function phSave() {
+    var keys = Object.keys(PH);
+    if (keys.length > PH_MAX) keys.sort(function (a, b) { return (PH[a].t || 0) - (PH[b].t || 0); }).slice(0, keys.length - PH_MAX).forEach(function (k) { delete PH[k]; });
+    try { localStorage.setItem(PH_KEY, JSON.stringify(PH)); }
+    catch (e) { keys = Object.keys(PH).sort(function (a, b) { return (PH[a].t || 0) - (PH[b].t || 0); }); keys.slice(0, Math.ceil(keys.length / 2)).forEach(function (k) { delete PH[k]; }); try { localStorage.setItem(PH_KEY, JSON.stringify(PH)); } catch (e2) {} }
+  }
+  /** คืนรูปถ้ามีในเครื่องและเป็นเวอร์ชันล่าสุด ไม่มีก็สั่งโหลดแล้วคืนค่าว่าง */
+  function photoOf(id, pv) {
+    if (!pv || !S.user) return '';
+    var p = PH[id];
+    if (p && String(p.v) === String(pv)) return p.d || '';
+    if (!phBusy[id]) { phWant[id] = pv; clearTimeout(phT); phT = setTimeout(phFetch, 60); }
+    return p && p.d ? p.d : '';
+  }
+  function phFetch() {
+    var ids = Object.keys(phWant).slice(0, 60);
+    if (!ids.length || !S.user) return;
+    ids.forEach(function (id) { phBusy[id] = true; delete phWant[id]; });
+    API.call('getPhotos', { ids: ids }).then(function (d) {
+      var got = d.photos || {}, t = now();
+      Object.keys(got).forEach(function (id) {
+        if (got[id].d) PH[id] = { v: got[id].v, d: got[id].d, t: t }; else delete PH[id];
+        phPatch(id);
+      });
+      phSave();
+    }).catch(function () {}).then(function () {
+      ids.forEach(function (id) { delete phBusy[id]; });
+      if (Object.keys(phWant).length) phT = setTimeout(phFetch, 60);
+    });
+  }
+  /** ใส่รูปลงในจุดที่แสดงอยู่ โดยไม่ต้องวาดหน้าใหม่ทั้งหน้า */
+  function phPatch(id) {
+    var p = PH[id], els = document.querySelectorAll('[data-ph="' + String(id).replace(/"/g, '') + '"]');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (p && p.d) { el.innerHTML = '<img src="' + esc(p.d) + '" alt="">'; if (el.className.indexOf('has-ph') < 0) el.className += ' has-ph'; }
+    }
+  }
+  function phSet(id, data, ver) {
+    if (data) PH[id] = { v: ver, d: data, t: now() }; else delete PH[id];
+    phSave();
+  }
+  function processStudentPhoto(file) {
+    return new Promise(function (resolve, reject) {
+      if (!/^image\//.test(file.type)) return reject({ message: 'เลือกไฟล์รูปภาพ' });
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var n = 260, q = 0.85, out = null, cv = document.createElement('canvas'), g = cv.getContext('2d');
+        var W = img.naturalWidth, H = img.naturalHeight, side = Math.min(W, H);
+        var sx = (W - side) / 2, sy = H > W ? (H - side) * 0.2 : 0; // รูปแนวตั้ง เน้นช่วงใบหน้าด้านบน
+        for (var i = 0; i < 8 && !out; i++) {
+          cv.width = n; cv.height = n; g.fillStyle = '#fff'; g.fillRect(0, 0, n, n);
+          g.drawImage(img, sx, sy, side, side, 0, 0, n, n);
+          var j = cv.toDataURL('image/jpeg', q);
+          if (j.length <= 36000) out = j; else if (q > 0.6) q -= 0.08; else n = Math.round(n * 0.85);
+        }
+        URL.revokeObjectURL(url);
+        out ? resolve(out) : reject({ message: 'ย่อรูปไม่สำเร็จ ลองใช้รูปอื่น' });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject({ message: 'เปิดรูปนี้ไม่ได้' }); };
+      img.src = url;
+    });
+  }
+  function canPhoto(st) {
+    var u = S.user;
+    return u.role === 'admin' || u.role === 'measure' || (u.role === 'teacher' && u.advisorClass && st && String(st.classroom) === String(u.advisorClass));
+  }
+  function photoBlock(st) {
+    var img = photoOf(st.id, st.photoVer);
+    return '<div class="stu-ph"><div class="stu-ph-i"' + (st.photoVer ? ' data-ph="' + esc(st.id) + '"' : '') + '>' + (img ? '<img src="' + esc(img) + '" alt="">' : ic('user', 40)) + '</div>' +
+      '<div class="stu-ph-b"><b>รูปนักเรียน</b><small class="t-muted">ใช้ในรายชื่อ หน้านักเรียน และรายงาน ระบบครอปและย่อให้อัตโนมัติ</small>' +
+      (canPhoto(st) ? '<div class="stu-ph-a"><button class="btn btn-ghost" data-act="ph-pick" data-id="' + esc(st.id) + '">' + ic('camera', 18) + (st.photoVer ? 'เปลี่ยนรูป' : 'ใส่รูป') + '</button>' +
+        (st.photoVer ? '<button class="btn btn-ghost" data-act="ph-remove" data-id="' + esc(st.id) + '" style="color:var(--zero)">ลบรูป</button>' : '') + '</div>' : '') + '</div></div>';
+  }
+  function savePhoto(id, data) {
+    loading(data ? 'กำลังบันทึกรูป' : 'กำลังลบรูป');
+    API.call('savePhoto', { id: id, data: data }).then(function (d) {
+      loaded(); haptic();
+      phSet(id, data, d.ver);
+      (S.adm.students || []).forEach(function (x) { if (x.id === id) x.photoVer = d.ver; });
+      (S.students || []).forEach(function (x) { if (x.id === id) x.pv = d.ver; });
+      S.cases.forEach(function (c) { if (c.sid === id) c.pv = d.ver; });
+      saveCache();
+      if (S.sheet && S.sheet.kind === 'form' && S.sheet.form === 'student' && S.sheet.values && S.sheet.values.studentId === id) {
+        var st = (S.adm.students || []).filter(function (x) { return x.id === id; })[0];
+        if (st) { S.sheet.top = photoBlock(st); S.sheet.extra = studentExtra(st); }
+        renderSheet();
+      }
+      render();
+      toast(data ? 'บันทึกรูปแล้ว' : 'ลบรูปแล้ว');
+    }).catch(function (e) { loaded(); toast(e.message || 'บันทึกรูปไม่สำเร็จ'); });
   }
   function emblem() {
     var src = logoSrc();
@@ -411,13 +512,13 @@
     var map = {}, list = [];
     S.cases.forEach(function (c) {
       var m = map[c.sid];
-      if (!m) { m = map[c.sid] = { sid: c.sid, name: c.studentName, cls: c.classroom || '', no: c.number || '', open: 0, total: 0, hold: !!c.hold }; list.push(m); }
+      if (!m) { m = map[c.sid] = { sid: c.sid, name: c.studentName, cls: c.classroom || '', no: c.number || '', open: 0, total: 0, hold: !!c.hold, pv: c.pv }; list.push(m); }
       m.total++;
       if (c.status !== 'APPROVED') m.open++;
     });
     (S.students || []).forEach(function (s) {
       if (map[s.id]) return;
-      map[s.id] = { sid: s.id, name: s.name, cls: s.cls, no: s.no, open: 0, total: 0 }; list.push(map[s.id]);
+      map[s.id] = { sid: s.id, name: s.name, cls: s.cls, no: s.no, open: 0, total: 0, pv: s.pv }; list.push(map[s.id]);
     });
     return list;
   }
@@ -440,7 +541,7 @@
       h += '<div class="pop-sec">นักเรียน <small>' + stu.length + '</small></div>' + stu.slice(0, 6).map(function (s) {
         var sub = gsMark(s.cls, toks) + (s.no ? ' เลขที่ ' + esc(s.no) : '') + ' · ' + gsMark(s.sid, toks);
         var tag = s.hold ? '<span class="chip ch-hold">แขวน</span>' : (s.open ? '<span class="chip ch-warn">ค้าง ' + s.open + '</span>' : (s.total ? '<span class="chip ch-ok">แก้ครบ</span>' : ''));
-        return '<button class="pn gs-r" data-act="gs-stu" data-v="' + esc(s.sid) + '">' + avatarHtml(s.sid, s.name) +
+        return '<button class="pn gs-r" data-act="gs-stu" data-v="' + esc(s.sid) + '">' + avatarHtml(s.sid, s.name, s.pv) +
           '<span class="pn-b"><b>' + gsMark(s.name, toks) + '</b><span>' + sub + '</span></span>' + tag + '</button>';
       }).join('') + (stu.length > 6 ? '<div class="gs-more">และอีก ' + (stu.length - 6) + ' คน พิมพ์ให้เจาะจงขึ้น</div>' : '');
     }
@@ -699,7 +800,7 @@
     if (!order.length) return '<div class="group"><div class="empty">' + (S.cases.length ? 'ไม่พบนักเรียนตามเงื่อนไขนี้ ลองเลือก ทั้งหมด หรือพิมพ์ชื่อใหม่' : 'ยังไม่มีนักเรียนที่ติด 0 ร มส กดปุ่มบันทึกด้านล่างเพื่อเริ่ม') + '</div></div>';
     return '<div class="group cols">' + order.map(function (sid) {
       var list = groups[sid], s = list[0], open = list.filter(isOpen), late = list.filter(isOverdue).length;
-      return '<button class="row" data-act="open-student" data-v="' + esc(sid) + '">' + avatarHtml(sid, s.firstName || s.studentName) + '<span class="row-main"><span class="row-t">' + esc(s.studentName) + '</span>' +
+      return '<button class="row" data-act="open-student" data-v="' + esc(sid) + '">' + avatarHtml(sid, s.firstName || s.studentName, s.pv) + '<span class="row-main"><span class="row-t">' + esc(s.studentName) + '</span>' +
         '<span class="row-s">' + esc(s.classroom) + ' เลขที่ ' + esc(s.number) + '</span><span class="row-s">' + (open.length ? '<span class="chip ch-warn">ค้าง ' + open.length + ' วิชา</span>' : '<span class="chip ch-ok">แก้ครบแล้ว</span>') + (late ? '<span class="chip ch-bad">เลยกำหนด ' + late + '</span>' : '') + '</span></span>' +
         '<span class="stack">' + open.slice(0, 3).map(function (c) { return stamp(c); }).join('') + '</span></button>';
     }).join('') + '</div>';
@@ -711,7 +812,7 @@
     if (u.advisorClass) f.push(['adv', 'ห้องที่ปรึกษา ' + u.advisorClass]);
     f = f.concat([['late', 'เลยกำหนด'], ['review', 'รอตรวจ'], ['hold', 'แขวน/ถอนชื่อ'], ['0', 'ติด 0'], ['ร', 'ติด ร'], ['มส', 'ติด มส'], ['m1', 'ม.1'], ['m2', 'ม.2'], ['m3', 'ม.3']]);
     var h = '<header class="top col"><div style="display:flex;align-items:center;gap:10px"><div class="top-h" style="flex:1">' + (u.role === 'teacher' ? 'นักเรียน' : 'ติดตามนักเรียน') + '</div><button class="ib" style="width:auto;padding:0 12px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px" data-act="export-xlsx" data-v="filter" aria-label="ส่งออก Excel">' + ic('file', 18) + 'Excel</button>' + refreshBtn('') + '</div><label class="search">' + ic('search', 20) + '<input id="q" type="search" placeholder="ค้นหาชื่อ เลขประจำตัว ห้อง หรือวิชา" value="' + esc(S.q) + '" aria-label="ค้นหานักเรียน"></label></header>';
-    h += '<main class="main" style="padding-top:4px"><div class="chips" role="group" aria-label="ตัวกรอง">' + f.map(function (x) {
+    h += '<main class="main" style="padding-top:4px">' + (u.role === 'teacher' && u.advisorClass ? '<button class="banner info adv-sum" data-act="sum-open" data-v="class">' + ic('printer') + '<div><b>รายงานสรุปห้อง ' + esc(u.advisorClass) + '</b><p>สรุปนักเรียนที่ติด 0 ร มส วิชาที่ค้าง และสถานะ พร้อมพิมพ์</p></div>' + ic('chev', 20) + '</button>' : '') + '<div class="chips" role="group" aria-label="ตัวกรอง">' + f.map(function (x) {
       return '<button class="fchip" data-act="filter" data-v="' + esc(x[0]) + '" aria-pressed="' + (S.filter === x[0]) + '">' + esc(x[1]) + '</button>';
     }).join('') + '</div><div id="slist" style="margin-top:14px">' + (S.loaded ? studentListHtml() : loadingHtml()) + '</div></main>';
     if (S.subjects.length) h += '<button class="fab no-print" data-act="new-case">' + ic('plus') + 'บันทึก 0 ร มส</button>';
@@ -721,7 +822,8 @@
     var cs = S.cases.filter(function (c) { return c.sid === sid; }).sort(byUrg);
     var s = cs[0] || {};
     var h = header(esc(s.studentName || sid), esc(s.classroom || '') + ' เลขที่ ' + esc(s.number || '-') + ' เลขประจำตัว ' + esc(sid), '', true);
-    h += '<main class="main"><div class="group"><dl class="kv"><dt>ผู้ปกครอง</dt><dd>' + esc(s.parentName || '-') + '</dd><dt>LINE ผู้ปกครอง</dt><dd>' + (s.parentLine ? '<span class="chip ch-ok">เชื่อมแล้ว</span>' : '<span class="chip">ยังไม่เชื่อม</span>') + '</dd></dl></div>';
+    h += '<main class="main"><div class="group stu-card">' + avatarHtml(sid, s.firstName || s.studentName || sid, s.pv, 'av-xl') + '<div><b>' + esc(s.studentName || sid) + '</b><span>' + esc(s.classroom || '') + ' เลขที่ ' + esc(s.number || '-') + '</span><br><span>ครูที่ปรึกษา ' + esc(s.advisorName || '-') + '</span></div></div>' +
+      '<div class="group"><dl class="kv"><dt>ผู้ปกครอง</dt><dd>' + esc(s.parentName || '-') + '</dd><dt>LINE ผู้ปกครอง</dt><dd>' + (s.parentLine ? '<span class="chip ch-ok">เชื่อมแล้ว</span>' : '<span class="chip">ยังไม่เชื่อม</span>') + '</dd></dl></div>';
     h += '<div class="sec"><h2>รายวิชา ' + cs.length + '</h2></div><div class="group">' + (cs.length ? cs.map(function (c) { return caseRow(c, false); }).join('') : '<div class="empty">ไม่มีรายการ</div>') + '</div></main>';
     var btns = '<button class="btn btn-ghost" data-act="open-report" data-v="' + esc(sid) + '">' + ic('printer', 20) + 'พิมพ์รายงาน</button>';
     if (S.subjects.length) btns += '<button class="btn btn-primary" data-act="new-case" data-v="' + esc(sid) + '">' + ic('plus', 20) + 'บันทึกเพิ่ม</button>';
@@ -765,14 +867,180 @@
     cs.forEach(function (c) { if (c.classroom && out.indexOf(c.classroom) < 0) out.push(c.classroom); });
     return out.sort();
   }
+
+  /* ---------- รายงานสรุป: ภาพรวมโรงเรียน / รายห้อง ---------- */
+  function sumStat(cs) {
+    var o = { total: cs.length, done: 0, review: 0, doing: 0, repeat: 0, hold: 0, late: 0, stu: 0, stuDone: 0, t: { '0': [0, 0], 'ร': [0, 0], 'มส': [0, 0] } };
+    var by = {};
+    cs.forEach(function (c) {
+      var st = c.status;
+      if (st === 'APPROVED') o.done++; else if (st === 'REPEAT') o.repeat++; else if (st === 'HOLD') o.hold++;
+      else if (st === 'SUBMITTED' || st === 'PASSED') o.review++; else o.doing++;
+      if (isOverdue(c)) o.late++;
+      if (o.t[c.type]) { o.t[c.type][0]++; if (st === 'APPROVED') o.t[c.type][1]++; }
+      by[c.sid] = by[c.sid] || { n: 0, open: 0 }; by[c.sid].n++; if (isOpen(c)) by[c.sid].open++;
+    });
+    Object.keys(by).forEach(function (k) { o.stu++; if (!by[k].open) o.stuDone++; });
+    o.pct = o.total ? Math.round(o.done * 100 / o.total) : 0;
+    return o;
+  }
+  function pctBar(p) { return '<div class="sm-pb"><i style="width:' + p + '%"></i><span>' + p + '%</span></div>'; }
+  function sumHead(title, sub) {
+    var src = logoSrc();
+    return '<div class="p-head">' + (src ? '<img class="p-logo" src="' + esc(src) + '" alt="">' : emblem()) + '<h3>' + esc(title) + '</h3>' +
+      (sub ? '<p><b>' + esc(sub) + '</b></p>' : '') + '<p>' + esc(setting('schoolName', 'โรงเรียนบ้านละลม')) + ' ' + esc(setting('areaName', '')) + '</p><p>' + term() + '</p></div>';
+  }
+  function sumKpi(o, roster) {
+    var k = [
+      ['นักเรียนที่ติด 0 ร มส', o.stu + ' คน', roster ? 'จาก ' + roster + ' คน (' + Math.round(o.stu * 100 / roster) + '%)' : 'แก้ครบแล้ว ' + o.stuDone + ' คน', ''],
+      ['รายการทั้งหมด', o.total + ' รายการ', '0: ' + o.t['0'][0] + '  ร: ' + o.t['ร'][0] + '  มส: ' + o.t['มส'][0], ''],
+      ['แก้เสร็จแล้ว', o.done + ' รายการ', 'คิดเป็น ' + o.pct + '%', 'ok'],
+      ['กำลังแก้', o.doing + ' รายการ', 'รอตรวจ/อนุมัติ ' + o.review + ' รายการ', 'warn'],
+      ['เลยกำหนด', o.late + ' รายการ', 'ต้องติดตามเร่งด่วน', o.late ? 'bad' : ''],
+      ['เรียนซ้ำ / แขวน', o.repeat + ' / ' + o.hold, 'ไม่นับเป็นค้างแก้', '']
+    ];
+    return '<div class="sm-kpi">' + k.map(function (x) { return '<div class="sm-k ' + x[3] + '"><small>' + x[0] + '</small><b>' + x[1] + '</b><span>' + esc(x[2]) + '</span></div>'; }).join('') + '</div>' +
+      '<div class="sm-big"><span>ความสำเร็จในการแก้ผลการเรียน</span>' + pctBar(o.pct) + '</div>';
+  }
+  function sumTypeTbl(o) {
+    var rows = [['0', 'ไม่ผ่านเกณฑ์'], ['ร', 'รอผลการเรียน (ค้างงาน/ขาดสอบ)'], ['มส', 'ไม่มีสิทธิ์สอบ (เวลาเรียนไม่ถึง 80%)']];
+    return '<h4 class="sm-h">1. แยกตามประเภทผลการเรียน</h4><div class="tbl-wrap"><table class="p-tbl sm-tbl"><thead><tr><th>ประเภท</th><th>ความหมาย</th><th>ทั้งหมด</th><th>แก้เสร็จ</th><th>ยังไม่เสร็จ</th><th style="width:28%">ร้อยละที่แก้เสร็จ</th></tr></thead><tbody>' +
+      rows.map(function (r) { var a = o.t[r[0]]; return '<tr><td><b>' + r[0] + '</b></td><td class="l">' + r[1] + '</td><td>' + a[0] + '</td><td>' + a[1] + '</td><td>' + (a[0] - a[1]) + '</td><td>' + pctBar(a[0] ? Math.round(a[1] * 100 / a[0]) : 0) + '</td></tr>'; }).join('') +
+      '<tr class="sm-tot"><td colspan="2">รวม</td><td>' + o.total + '</td><td>' + o.done + '</td><td>' + (o.total - o.done) + '</td><td>' + pctBar(o.pct) + '</td></tr></tbody></table></div>';
+  }
+  function sumGroupTbl(no, title, head, groups) {
+    var h = '<h4 class="sm-h">' + no + '. ' + title + '</h4><div class="tbl-wrap"><table class="p-tbl sm-tbl"><thead><tr><th>' + head + '</th><th>นักเรียน</th><th>0</th><th>ร</th><th>มส</th><th>รวม</th><th>แก้เสร็จ</th><th>ค้าง</th><th>เลยกำหนด</th><th style="width:22%">ร้อยละ</th></tr></thead><tbody>';
+    var T = sumStat([]);
+    groups.forEach(function (g) {
+      var o = sumStat(g.cs);
+      h += '<tr><td class="l"><b>' + esc(g.label) + '</b>' + (g.sub ? '<br><small>' + esc(g.sub) + '</small>' : '') + '</td><td>' + o.stu + '</td><td>' + o.t['0'][0] + '</td><td>' + o.t['ร'][0] + '</td><td>' + o.t['มส'][0] + '</td><td>' + o.total + '</td><td>' + o.done + '</td><td>' + (o.total - o.done) + '</td><td' + (o.late ? ' class="sm-late"' : '') + '>' + o.late + '</td><td>' + pctBar(o.pct) + '</td></tr>';
+    });
+    var all = []; groups.forEach(function (g) { all = all.concat(g.cs); }); T = sumStat(all);
+    return h + '<tr class="sm-tot"><td>รวม</td><td>' + T.stu + '</td><td>' + T.t['0'][0] + '</td><td>' + T.t['ร'][0] + '</td><td>' + T.t['มส'][0] + '</td><td>' + T.total + '</td><td>' + T.done + '</td><td>' + (T.total - T.done) + '</td><td>' + T.late + '</td><td>' + pctBar(T.pct) + '</td></tr></tbody></table></div>';
+  }
+  function groupBy(cs, keyFn, labelFn) {
+    var m = {}, keys = [];
+    cs.forEach(function (c) { var k = keyFn(c); if (!m[k]) { m[k] = []; keys.push(k); } m[k].push(c); });
+    return keys.map(function (k) { var l = labelFn ? labelFn(k, m[k]) : { label: k }; l.cs = m[k]; l.key = k; return l; });
+  }
+  function sumSubjectTbl(no, cs) {
+    var g = groupBy(cs, function (c) { return c.subject; }).sort(function (a, b) { return b.cs.length - a.cs.length || (a.key < b.key ? -1 : 1); });
+    var h = '<h4 class="sm-h">' + no + '. แยกตามรายวิชา</h4><div class="tbl-wrap"><table class="p-tbl sm-tbl"><thead><tr><th>รหัสวิชา</th><th>รายวิชา</th><th>ครูผู้สอน</th><th>0</th><th>ร</th><th>มส</th><th>รวม</th><th>แก้เสร็จ</th><th style="width:20%">ร้อยละ</th></tr></thead><tbody>';
+    g.forEach(function (x) {
+      var o = sumStat(x.cs), c = x.cs[0];
+      h += '<tr><td>' + esc(c.subject) + '</td><td class="l">' + esc(c.subjectName) + '</td><td class="l">' + esc(c.teacherName || '-') + '</td><td>' + o.t['0'][0] + '</td><td>' + o.t['ร'][0] + '</td><td>' + o.t['มส'][0] + '</td><td>' + o.total + '</td><td>' + o.done + '</td><td>' + pctBar(o.pct) + '</td></tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+  function sumTeacherTbl(no, cs) {
+    var g = groupBy(cs, function (c) { return c.teacherName || '-'; }).sort(function (a, b) { return b.cs.length - a.cs.length; });
+    var h = '<h4 class="sm-h">' + no + '. แยกตามครูผู้สอน</h4><div class="tbl-wrap"><table class="p-tbl sm-tbl"><thead><tr><th>ครูผู้สอน</th><th>รายการ</th><th>แก้เสร็จ</th><th>รอตรวจ/อนุมัติ</th><th>กำลังแก้</th><th>เลยกำหนด</th><th style="width:22%">ร้อยละ</th></tr></thead><tbody>';
+    g.forEach(function (x) {
+      var o = sumStat(x.cs);
+      h += '<tr><td class="l">' + esc(x.key) + '</td><td>' + o.total + '</td><td>' + o.done + '</td><td>' + o.review + '</td><td>' + o.doing + '</td><td' + (o.late ? ' class="sm-late"' : '') + '>' + o.late + '</td><td>' + pctBar(o.pct) + '</td></tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+  function sumStudentTbl(no, cs) {
+    var g = groupBy(cs, function (c) { return c.sid; }).sort(function (a, b) { return (+a.cs[0].number || 0) - (+b.cs[0].number || 0); });
+    var h = '<h4 class="sm-h">' + no + '. รายชื่อนักเรียนที่ติด 0 ร มส</h4><div class="tbl-wrap"><table class="p-tbl sm-tbl"><thead><tr><th>เลขที่</th><th>ชื่อ-สกุล</th><th>0</th><th>ร</th><th>มส</th><th>รวม</th><th>แก้เสร็จ</th><th>ค้าง</th><th>รายวิชาที่ยังค้าง</th><th>สถานะ</th></tr></thead><tbody>';
+    g.forEach(function (x) {
+      var o = sumStat(x.cs), c = x.cs[0], open = x.cs.filter(isOpen);
+      var st = c.hold ? '<span class="sm-st hold">' + (c.hold === 'WITHDRAWN' ? 'ถอนชื่อ' : 'แขวน') + '</span>' : (!open.length ? '<span class="sm-st ok">แก้ครบ</span>' : (x.cs.some(isOverdue) ? '<span class="sm-st bad">เลยกำหนด</span>' : '<span class="sm-st warn">กำลังแก้</span>'));
+      h += '<tr><td>' + esc(c.number || '-') + '</td><td class="l">' + esc(c.studentName) + '</td><td>' + o.t['0'][0] + '</td><td>' + o.t['ร'][0] + '</td><td>' + o.t['มส'][0] + '</td><td>' + o.total + '</td><td>' + o.done + '</td><td>' + open.length + '</td><td class="l sm-subj">' +
+        (open.length ? open.map(function (z) { return esc(z.subjectName) + ' (' + esc(z.type) + ')'; }).join(', ') : '-') + '</td><td>' + st + '</td></tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+  function sumNotes(cs, scope) {
+    var n = [], o = sumStat(cs);
+    if (!cs.length) return '';
+    if (scope === 'all') {
+      var byCls = groupBy(cs, function (c) { return c.classroom; }).map(function (g) { return { k: g.key, open: g.cs.filter(isOpen).length }; }).sort(function (a, b) { return b.open - a.open; });
+      if (byCls[0] && byCls[0].open) n.push('ห้องที่มีรายการค้างมากที่สุด คือ ' + byCls[0].k + ' (' + byCls[0].open + ' รายการ)');
+    }
+    var bySub = groupBy(cs, function (c) { return c.subjectName; }).sort(function (a, b) { return b.cs.length - a.cs.length; });
+    if (bySub[0]) n.push('รายวิชาที่พบมากที่สุด คือ ' + bySub[0].key + ' (' + bySub[0].cs.length + ' รายการ)');
+    var top = ['0', 'ร', 'มส'].sort(function (a, b) { return o.t[b][0] - o.t[a][0]; })[0];
+    if (o.t[top][0]) n.push('ประเภทที่พบมากที่สุด คือ ' + top + ' (' + o.t[top][0] + ' รายการ คิดเป็น ' + Math.round(o.t[top][0] * 100 / o.total) + '% ของทั้งหมด)');
+    n.push(o.late ? 'มีรายการเลยกำหนด ' + o.late + ' รายการ ควรเร่งติดตาม' : 'ไม่มีรายการเลยกำหนด');
+    n.push('แก้เสร็จแล้ว ' + o.done + ' จาก ' + o.total + ' รายการ (' + o.pct + '%) นักเรียนแก้ครบทุกวิชาแล้ว ' + o.stuDone + ' จาก ' + o.stu + ' คน');
+    return '<div class="sm-note"><b>ข้อสังเกต</b><ul>' + n.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+  }
+  function sumSigns(first) {
+    var cfg = reportCfg(), dots = '......................................', sigs = first ? [first] : [];
+    cfg.signers.forEach(function (g) {
+      if (g.on === false || g.auto) return;
+      sigs.push({ name: g.name || '', role: g.label, img: cfg.printSig !== false && g.id ? (S.sigs || {})[g.id] : '' });
+    });
+    var d = new Date();
+    return '<div class="p-sign">' + sigs.map(function (g) {
+      return '<div class="sig">' + (g.img ? '<img class="sig-img" src="' + esc(g.img) + '" alt="">' : '') + 'ลงชื่อ ' + dots + '<br>(' + esc(g.name || dots) + ')<br><span class="role">' + esc(g.role) + '</span></div>';
+    }).join('') + '</div><div class="p-give">วันที่ ' + d.getDate() + ' ' + TH_FULL[d.getMonth()] + ' พ.ศ. ' + (d.getFullYear() + 543) + '</div>';
+  }
+  function rosterOf(cls) {
+    if (!S.students) return 0;
+    return S.students.filter(function (x) { return !cls || x.cls === cls; }).length;
+  }
+  function sumAllPaper() {
+    var cs = S.cases, o = sumStat(cs);
+    var h = '<div class="paper sum">' + sumHead('รายงานสรุปผลการติดตามการแก้ผลการเรียน 0 ร มส', 'ภาพรวมทั้งโรงเรียน') + sumKpi(o, rosterOf(''));
+    if (!cs.length) return h + '<p class="p-sum">ยังไม่มีรายการ 0 ร มส ในภาคเรียนนี้</p>' + sumSigns({ name: S.user.displayName, role: 'ผู้รายงาน' }) + '</div>';
+    h += sumTypeTbl(o);
+    var lv = groupBy(cs, function (c) { return level(c.classroom) || 0; }).sort(function (a, b) { return a.key - b.key; });
+    lv.forEach(function (g) { g.label = g.key ? 'มัธยมศึกษาปีที่ ' + g.key : 'ไม่ระบุชั้น'; });
+    h += sumGroupTbl(2, 'แยกตามระดับชั้น', 'ระดับชั้น', lv);
+    var cl = groupBy(cs, function (c) { return c.classroom || 'ไม่ระบุ'; }, function (k, a) { return { label: k, sub: a[0].advisorName ? 'ครูที่ปรึกษา ' + a[0].advisorName : '' }; }).sort(function (a, b) { return a.key < b.key ? -1 : 1; });
+    h += sumGroupTbl(3, 'แยกตามห้องเรียน', 'ห้อง', cl);
+    h += sumSubjectTbl(4, cs) + sumTeacherTbl(5, cs) + sumNotes(cs, 'all');
+    return h + sumSigns({ name: S.user.displayName, role: 'ผู้รายงาน (' + roleName(S.user.role) + ')' }) + '</div>';
+  }
+  function sumClassPaper(cls) {
+    var cs = S.cases.filter(function (c) { return c.classroom === cls; }), o = sumStat(cs), adv = cs[0] ? cs[0].advisorName : '';
+    if (!adv && S.user.role === 'teacher' && S.user.advisorClass === cls) adv = S.user.displayName;
+    var h = '<div class="paper sum">' + sumHead('รายงานสรุปผลการติดตามการแก้ผลการเรียน 0 ร มส', 'ชั้น ' + cls + (adv ? '  ครูที่ปรึกษา ' + adv : '')) + sumKpi(o, rosterOf(cls));
+    if (!cs.length) return h + '<p class="p-sum">ห้องนี้ไม่มีนักเรียนติด 0 ร มส</p>' + sumSigns({ name: adv, role: 'ครูที่ปรึกษา' }) + '</div>';
+    h += sumTypeTbl(o) + sumStudentTbl(2, cs) + sumSubjectTbl(3, cs) + sumNotes(cs, 'class');
+    return h + sumSigns({ name: adv, role: 'ครูที่ปรึกษาชั้น ' + cls }) + '</div>';
+  }
+  function sumClasses() {
+    if (S.user.role === 'teacher') return S.user.advisorClass ? [S.user.advisorClass] : [];
+    return classesOf(S.cases);
+  }
+  function vSum(top) {
+    var classes = sumClasses(), body, title, sub;
+    if (top.scope === 'all') { title = 'รายงานสรุปภาพรวม'; sub = 'ทั้งโรงเรียน'; body = sumAllPaper(); }
+    else if (top.scope === 'classes') {
+      title = 'สรุปรายห้องทุกห้อง'; sub = classes.length + ' ห้อง (พิมพ์ห้องละหน้า)';
+      body = '<div class="papers">' + classes.map(sumClassPaper).join('') + '</div>';
+    } else {
+      var cls = top.cls || classes[0];
+      title = 'รายงานสรุปรายห้อง'; sub = 'ชั้น ' + (cls || '-');
+      body = (classes.length > 1 ? '<div class="chips no-print" style="padding-top:0;margin-bottom:12px">' + classes.map(function (c) {
+        return '<button class="fchip" data-act="sum-cls" data-v="' + esc(c) + '" aria-pressed="' + (c === cls) + '">' + esc(c) + '</button>';
+      }).join('') + '</div>' : '') + (cls ? sumClassPaper(cls) : '<div class="group"><div class="empty">ยังไม่มีข้อมูลรายห้อง</div></div>');
+    }
+    return header(title, esc(sub), '', true) + '<main class="main">' + (S.loaded ? body : loadingHtml()) + '</main>' +
+      actbar('<button class="btn btn-ghost" data-act="export-xlsx" data-v="' + (top.scope === 'class' ? 'sum:' + esc(top.cls || classes[0] || '') : (top.scope === 'classes' ? 'sum:*' : '')) + '">' + ic('file', 20) + 'Excel</button><button class="btn btn-primary" data-act="print">' + ic('printer', 20) + 'พิมพ์ หรือบันทึกเป็น PDF</button>');
+  }
+  function sumCards() {
+    var classes = sumClasses(), mgr = isManager();
+    if (!classes.length && !mgr) return '';
+    var h = '<div class="sec" style="margin-top:4px"><h2>รายงานสรุป</h2></div><div class="sum-cards">';
+    if (mgr) h += '<button class="sum-c" data-act="sum-open" data-v="all"><span class="sum-ic">' + ic('chart', 24) + '</span><b>สรุปภาพรวมทั้งโรงเรียน</b><span>ประเภท ระดับชั้น ห้อง รายวิชา ครูผู้สอน พร้อมข้อสังเกต</span></button>';
+    if (classes.length) h += '<button class="sum-c" data-act="sum-open" data-v="class"><span class="sum-ic c2">' + ic('users', 24) + '</span><b>' + (mgr ? 'สรุปรายห้อง' : 'สรุปห้อง ' + esc(classes[0])) + '</b><span>รายชื่อนักเรียน วิชาที่ค้าง สถานะ สำหรับครูที่ปรึกษา</span></button>';
+    if (mgr && classes.length > 1) h += '<button class="sum-c" data-act="sum-open" data-v="classes"><span class="sum-ic c3">' + ic('printer', 24) + '</span><b>สรุปทุกห้อง</b><span>พิมพ์รายงานสรุปของทุกห้องต่อกัน ห้องละหน้า (' + classes.length + ' ห้อง)</span></button>';
+    return h + '</div>';
+  }
   function vReportTab() {
     var cs = S.cases, classes = classesOf(cs);
     if (!S.cls || classes.indexOf(S.cls) < 0) S.cls = classes[0] || null;
     var h = header('รายงาน', term(), '<button class="ib" style="width:auto;padding:0 12px;font-size:14px;font-weight:600;gap:6px;display:flex;align-items:center" data-act="export-xlsx">' + ic('file', 18) + 'Excel</button>' + refreshBtn(''));
     h += '<main class="main">';
     if (!S.loaded) return h + loadingHtml() + '</main>';
+    h += sumCards();
     if (!classes.length) return h + '<div class="group"><div class="soon">' + ic('printer', 32) + '<b>ยังไม่มีข้อมูลสำหรับรายงาน</b><span>เมื่อครูบันทึกนักเรียนที่ติด 0 ร มส แล้วรายงานจะขึ้นที่นี่</span></div></div></main>';
-    h += '<div class="sec" style="margin-top:4px"><h2>สรุปรายห้อง</h2></div><div class="group"><div class="tbl-wrap"><table class="p-tbl" style="min-width:0;font-size:14px"><thead><tr><th>ห้อง</th><th>0</th><th>ร</th><th>มส</th><th>แก้เสร็จ</th></tr></thead><tbody>';
+    h += '<div class="sec"><h2>ตารางสรุปรายห้อง</h2></div><div class="group"><div class="tbl-wrap"><table class="p-tbl" style="min-width:0;font-size:14px"><thead><tr><th>ห้อง</th><th>0</th><th>ร</th><th>มส</th><th>แก้เสร็จ</th></tr></thead><tbody>';
     classes.forEach(function (cl) {
       var a = cs.filter(function (c) { return c.classroom === cl; }), t = tally(a);
       var d = a.filter(function (c) { return c.status === 'APPROVED'; }).length;
@@ -813,7 +1081,7 @@
   function vMe() {
     var u = S.user;
     var h = header('ฉัน', roleName(u.role));
-    h += '<main class="main"><div class="me">' + avatarHtml(u.id, u.firstName || u.displayName) + '<div><div class="me-n">' + esc(u.displayName) + '</div><div class="me-s">' +
+    h += '<main class="main"><div class="me">' + avatarHtml(u.id, u.firstName || u.displayName, u.role === 'student' ? u.photoVer : '') + '<div><div class="me-n">' + esc(u.displayName) + '</div><div class="me-s">' +
       (u.role === 'student' ? esc(u.classroom) + ' เลขที่ ' + esc(u.number) + ' เลขประจำตัว ' + esc(u.username) : esc(u.department || '') + ' ชื่อผู้ใช้ ' + esc(u.username)) + '</div></div></div>';
     h += '<div class="sec"><h2>บัญชีและการตั้งค่า</h2></div><div class="group">';
     h += '<button class="row" data-act="pw-open"><span class="nf-ic">' + ic('lock', 20) + '</span><span class="row-main"><span class="row-t">เปลี่ยนรหัสผ่าน</span><span class="row-s">แนะนำให้เปลี่ยนทุกภาคเรียน</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
@@ -839,7 +1107,7 @@
       '<span><b>' + esc(C.APP_NAME || 'ติดตามการแก้ 0 ร มส') + '</b><small>' + esc(setting('schoolName', C.SCHOOL || '')) + '</small></span></div><div class="nav-in">' + tabsFor(S.user.role).map(function (t) {
       var b = t[0] === 'notif' ? un : (t[0] === 'approve' ? pend : 0);
       return '<button data-act="tab" data-v="' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '><span class="pill">' + ic(t[2]) + '</span>' + t[1] + (b ? '<span class="badge">' + b + '</span>' : '') + '</button>';
-    }).join('') + '</div>' + navExtra() + '<div class="nav-user">' + avatarHtml(S.user.id, S.user.firstName || S.user.displayName) + '<span><b>' + esc(S.user.displayName) + '</b><small>' + roleName(S.user.role) + '</small></span></div></nav>';
+    }).join('') + '</div>' + navExtra() + '<div class="nav-user">' + avatarHtml(S.user.id, S.user.firstName || S.user.displayName, S.user.role === 'student' ? S.user.photoVer : '') + '<span><b>' + esc(S.user.displayName) + '</b><small>' + roleName(S.user.role) + '</small></span></div></nav>';
   }
   /* ส่วนเสริมแถบเมนูซ้าย (จอคอม): ทางลัด สรุปย่อ ออกจากระบบ */
   function navExtra() {
@@ -853,6 +1121,8 @@
       var un = unread();
       links.push(nxb('tab-notif', 'bell', 'การแจ้งเตือน', un ? '<span class="nx-badge">' + un + '</span>' : ''));
     }
+    if (u.role === 'teacher' && u.advisorClass) links.push(nxb('sum-open', 'printer', 'สรุปห้อง ' + esc(u.advisorClass), '', ' data-v="class"'));
+    if (isManager()) links.push(nxb('sum-open', 'printer', 'รายงานสรุปภาพรวม', '', ' data-v="all"'));
     links.push(nxb('theme', isDark() ? 'sun' : 'moon', isDark() ? 'โหมดสว่าง' : 'โหมดมืด', '<span class="sw sm' + (isDark() ? ' on' : '') + '"></span>'));
     links.push(nxb('theme-open', 'palette', 'สีธีมและเอฟเฟค'));
     links.push(nxb('pw-open', 'lock', 'เปลี่ยนรหัสผ่าน'));
@@ -897,7 +1167,8 @@
     else if (top.v === 'adm-subjects') app.innerHTML = vAdmSubjects();
     else if (top.v === 'report-class') app.innerHTML = vReportClass(top.cls);
     else if (top.v === 'report') app.innerHTML = vReport(top.sid);
-    var key = top ? top.v + ':' + (top.id || top.sid || top.cls || '') : 'tab:' + S.tab;
+    else if (top.v === 'sum') app.innerHTML = vSum(top);
+    var key = top ? top.v + ':' + (top.id || top.sid || top.cls || top.scope || '') : 'tab:' + S.tab;
     if (key !== S.viewKey) {
       S.viewKey = key;
       var mn = app.querySelector('.main');
@@ -1065,6 +1336,14 @@
       processLogo(f).then(function (d) { S.sheet.newData = d; renderSheet(); }).catch(function (e) { toast(e.message); });
     });
     document.body.appendChild(lg);
+    var sp = document.createElement('input');
+    sp.type = 'file'; sp.id = 'fStuPh'; sp.accept = 'image/*'; sp.hidden = true;
+    sp.addEventListener('change', function () {
+      var f = sp.files && sp.files[0], id = sp.getAttribute('data-id');
+      if (!f || !id) return;
+      processStudentPhoto(f).then(function (d) { savePhoto(id, d); }).catch(function (e) { toast(e.message); });
+    });
+    document.body.appendChild(sp);
     var dv = document.createElement('input');
     dv.type = 'file'; dv.id = 'fDev'; dv.accept = 'image/*'; dv.hidden = true;
     dv.addEventListener('change', function () {
@@ -1150,6 +1429,7 @@
       S.students = list; S.studentsAt = now();
       if (S.sheet && S.sheet.kind === 'new') renderSheet();
       if (S.pop === 'search' && $('gsres')) $('gsres').innerHTML = gsResults(S.gsq || '');
+      var tv = S.stack[S.stack.length - 1]; if (tv && tv.v === 'sum') renderMain();
     }).catch(function (e) { toast(e.message || 'โหลดรายชื่อนักเรียนไม่สำเร็จ'); });
   }
 
@@ -1180,6 +1460,8 @@
     var src = logoSrc(), d = new Date();
     var h = '<div class="paper"><div class="p-head">' + (src ? '<img class="p-logo" src="' + esc(src) + '" alt="">' : emblem()) +
       '<h3>' + esc(cfg.title || DEFAULT_REPORT.title) + '</h3><p>' + esc(setting('schoolName', 'โรงเรียนบ้านละลม')) + ' ' + esc(setting('areaName', '')) + '</p><p>' + term() + '</p></div>';
+    var pimg = s.pv ? photoOf(sid, s.pv) : '';
+    if (s.pv) h += '<div class="p-photo" data-ph="' + esc(sid) + '">' + (pimg ? '<img src="' + esc(pimg) + '" alt="">' : '') + '</div>';
     h += '<div class="p-info"><div>ชื่อ-สกุล <b>' + esc(s.studentName || '-') + '</b></div><div>เลขประจำตัว <b>' + esc(sid) + '</b></div><div>ชั้น <b>' + esc(s.classroom || '-') + '</b> เลขที่ <b>' + esc(s.number || '-') + '</b></div><div>ครูที่ปรึกษา <b>' + esc(s.advisorName || '-') + '</b></div></div>';
     h += '<div class="tbl-wrap"><table class="p-tbl"><thead><tr><th>ที่</th><th>รหัสวิชา</th><th>รายวิชา</th><th>ผลเดิม</th><th>ครั้งที่</th><th>สถานะ</th><th>ผลหลังแก้</th><th>ครูผู้สอน</th></tr></thead><tbody>';
     if (cs.length) cs.forEach(function (c, i) {
@@ -1710,7 +1992,7 @@
   }
   function shForm() {
     var s = S.sheet;
-    return '<h3 class="sh-t">' + esc(s.title) + '</h3>' + (s.sub ? '<p class="sh-s">' + esc(s.sub) + '</p>' : '') +
+    return '<h3 class="sh-t">' + esc(s.title) + '</h3>' + (s.sub ? '<p class="sh-s">' + esc(s.sub) + '</p>' : '') + (s.top || '') +
       s.fields.map(function (f) { return formField(f, s.values[f.k], s.readonly); }).join('') +
       '<div id="formErr" class="err" role="alert"></div>' + (s.extra || '') +
       (s.readonly ? '<button class="btn btn-ghost btn-block" data-act="close-sheet">ปิด</button>' : '<button class="btn btn-primary btn-block" data-act="form-save">' + esc(s.saveLabel || 'บันทึก') + '</button>');
@@ -1756,10 +2038,14 @@
         { k: 'classroom', label: 'ห้อง', ph: 'เช่น ม.2/1' }, { k: 'number', label: 'เลขที่', type: 'number' },
         { k: 'parentName', label: 'ชื่อผู้ปกครอง' }, { k: 'parentPhone', label: 'เบอร์โทรผู้ปกครอง' }
       ],
-      extra: st ? '<button class="btn btn-ghost btn-block" data-act="adm-reset" data-kind="student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('lock', 20) + 'รีเซ็ตรหัสผ่านนักเรียน</button>' +
-        '<button class="btn btn-ghost btn-block" data-act="line-student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('chat', 20) + 'QR เชื่อม LINE ผู้ปกครอง' + (st.lineLinked ? ' (เชื่อมแล้ว)' : '') + '</button>' +
-        statusButtons(st) : ''
+      top: st ? photoBlock(st) : '',
+      extra: st ? studentExtra(st) : ''
     });
+  }
+  function studentExtra(st) {
+    return '<button class="btn btn-ghost btn-block" data-act="adm-reset" data-kind="student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('lock', 20) + 'รีเซ็ตรหัสผ่านนักเรียน</button>' +
+      '<button class="btn btn-ghost btn-block" data-act="line-student" data-id="' + esc(st.id) + '" style="margin-bottom:10px">' + ic('chat', 20) + 'QR เชื่อม LINE ผู้ปกครอง' + (st.lineLinked ? ' (เชื่อมแล้ว)' : '') + '</button>' +
+      statusButtons(st);
   }
   function statusButtons(st) {
     var h = '<div class="sec" style="margin:14px 2px 10px"><h2>สถานะการติดตาม</h2></div>';
@@ -1980,21 +2266,69 @@
     if (isAdmin()) h += '<button class="fab no-print" data-act="adm-user-new">' + ic('plus') + 'เพิ่มครู</button>';
     return h;
   }
-  function admStudentRows() {
+  function admFiltered() {
     var list = S.adm.students || [], q = S.aq.trim().toLowerCase();
-    var f = list.filter(function (s) {
+    return list.filter(function (s) {
       if (S.acls !== 'all' && s.classroom !== S.acls) return false;
       if (S.astat === 'normal' && s.trackStatus) return false;
       if ((S.astat === 'SUSPENDED' || S.astat === 'WITHDRAWN') && s.trackStatus !== S.astat) return false;
       return !q || (s.name + ' ' + s.id + ' ' + s.classroom).toLowerCase().indexOf(q) >= 0;
     });
-    if (!f.length) return '<div class="group"><div class="empty">' + (list.length ? 'ไม่พบนักเรียนตามเงื่อนไขนี้' : 'ยังไม่มีรายชื่อนักเรียน กดนำเข้าจาก Excel เพื่อเริ่ม') + '</div></div>';
-    return '<div class="group cols">' + f.slice(0, 300).map(function (s) {
-      return '<button class="row" data-act="adm-stu-edit" data-id="' + esc(s.id) + '">' + avatarHtml(s.id, s.firstName) + '<span class="row-main"><span class="row-t">' + esc(s.name) + '</span>' +
+  }
+  function bulkBar(f) {
+    if (!isAdmin() || !(S.adm.students || []).length) return '';
+    var sel = S.asel;
+    if (!sel) {
+      return '<div class="bulk"><button class="bk-b" data-act="asel-on">' + ic('checksq', 18) + 'เลือกหลายคน</button>' +
+        (f.length ? '<button class="bk-b bk-bad" data-act="adel-all">' + ic('trash', 18) + 'ลบทั้งหมด' + (f.length < (S.adm.students || []).length ? 'ที่แสดง' : '') + ' (' + f.length + ')</button>' : '') + '</div>';
+    }
+    var n = Object.keys(sel).length, allOn = f.length && f.every(function (x) { return sel[x.id]; });
+    return '<div class="bulk on"><span class="bk-n">เลือกแล้ว <b>' + n + '</b> คน</span>' +
+      '<button class="bk-b" data-act="asel-all">' + (allOn ? 'ไม่เลือกที่แสดง' : 'เลือกทั้งหมดที่แสดง (' + f.length + ')') + '</button>' +
+      (n ? '<button class="bk-b" data-act="asel-clear">ล้างการเลือก</button>' : '') +
+      '<span class="bk-sp"></span><button class="bk-b bk-bad" data-act="adel-sel"' + (n ? '' : ' disabled') + '>' + ic('trash', 18) + 'ลบที่เลือก' + (n ? ' (' + n + ')' : '') + '</button>' +
+      '<button class="bk-b bk-done" data-act="asel-off">เสร็จ</button></div>';
+  }
+  function admStudentRows() {
+    var list = S.adm.students || [], f = admFiltered(), sel = S.asel, adm = isAdmin();
+    var bar = bulkBar(f);
+    if (!f.length) return bar + '<div class="group"><div class="empty">' + (list.length ? 'ไม่พบนักเรียนตามเงื่อนไขนี้' : 'ยังไม่มีรายชื่อนักเรียน กดนำเข้าจาก Excel เพื่อเริ่ม') + '</div></div>';
+    return bar + '<div class="group cols">' + f.slice(0, 300).map(function (s) {
+      var on = sel && sel[s.id];
+      var inner = (sel ? '<span class="ck' + (on ? ' on' : '') + '">' + (on ? ic('check', 16) : '') + '</span>' : '') + avatarHtml(s.id, s.firstName, s.photoVer) + '<span class="row-main"><span class="row-t">' + esc(s.name) + '</span>' +
         '<span class="row-s">' + esc(s.classroom) + ' เลขที่ ' + esc(s.number) + ' เลขประจำตัว ' + esc(s.id) + '</span><span class="row-s">' +
         (s.trackStatus === 'SUSPENDED' ? '<span class="chip ch-hold">แขวนการติดตาม</span>' : (s.trackStatus === 'WITHDRAWN' ? '<span class="chip ch-bad">ถอนชื่อ</span>' : (s.active ? '' : '<span class="chip ch-bad">ปิดบัญชี</span>'))) + (s.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '<span class="chip ch-ok">ตั้งรหัสแล้ว</span>') +
-        (s.lineLinked ? '<span class="chip ch-ok">LINE</span>' : '') + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
-    }).join('') + '</div>' + (f.length > 300 ? '<p class="hint" style="margin-top:8px">แสดง 300 คนแรก ค้นหาเพื่อดูคนอื่น</p>' : '');
+        (s.lineLinked ? '<span class="chip ch-ok">LINE</span>' : '') + '</span></span>';
+      if (sel) return '<button class="row' + (on ? ' sel' : '') + '" data-act="asel-t" data-id="' + esc(s.id) + '" aria-pressed="' + !!on + '">' + inner + '</button>';
+      var row = '<button class="row" data-act="adm-stu-edit" data-id="' + esc(s.id) + '">' + inner + '<span class="chev">' + ic('chev', 20) + '</span></button>';
+      return adm ? '<div class="row-split">' + row + '<button class="del-ic" data-act="stu-delete" data-id="' + esc(s.id) + '" aria-label="ลบ ' + esc(s.name) + '" title="ลบนักเรียนคนนี้">' + ic('trash', 18) + '</button></div>' : row;
+    }).join('') + '</div>' + (f.length > 300 ? '<p class="hint" style="margin-top:8px">แสดง 300 คนแรก ค้นหาเพื่อดูคนอื่น (การเลือกทั้งหมดและลบทั้งหมดรวมทุกคนตามตัวกรอง ' + f.length + ' คน)</p>' : '');
+  }
+  function deleteMany(ids, label) {
+    if (!ids.length) return;
+    var typed = ids.length >= 5;
+    var ask = !typed ? confirmBox({ title: 'ลบ ' + label + '?', text: 'ลบออกจากระบบถาวร พร้อมรูปและการแจ้งเตือนของนักเรียนเหล่านี้', ok: 'ลบ ' + ids.length + ' คน', danger: true })
+      : (hasSwal() ? swalFire({
+        title: 'ลบ ' + label + '?', icon: 'warning',
+        html: '<div style="font-size:14.5px">ลบนักเรียน <b>' + ids.length + ' คน</b> ออกจากระบบถาวร<br>ถ้าต้องการเก็บประวัติไว้ ให้ใช้ <b>ถอนชื่อ</b> แทน<br><br>พิมพ์คำว่า <b style="color:var(--zero)">ลบทั้งหมด</b> เพื่อยืนยัน</div>',
+        input: 'text', inputPlaceholder: 'ลบทั้งหมด', showCancelButton: true, confirmButtonText: 'ลบ ' + ids.length + ' คน', cancelButtonText: 'ยกเลิก', reverseButtons: true,
+        customClass: { popup: 'sw-pop', confirmButton: 'sw-danger' },
+        inputValidator: function (v) { if (String(v || '').trim() !== 'ลบทั้งหมด') return 'พิมพ์คำว่า ลบทั้งหมด ให้ถูกต้อง'; }
+      }).then(function (r) { return r.isConfirmed; }) : Promise.resolve(window.prompt('พิมพ์คำว่า ลบทั้งหมด เพื่อยืนยันการลบ ' + ids.length + ' คน') === 'ลบทั้งหมด'));
+    var run = function (force) {
+      loading('กำลังลบ ' + ids.length + ' คน', 'อาจใช้เวลาสักครู่');
+      API.call('adminDeleteStudents', { ids: ids, force: !!force }).then(function (d) {
+        var gone = {}; (d.ids || ids).forEach(function (x) { gone[x] = true; });
+        S.asel = null;
+        afterDelete('students', function (x) { return !gone[x.id]; }, 'ลบนักเรียนแล้ว ' + d.deleted + ' คน', d.cases ? 'พร้อมรายการ 0 ร มส ' + d.cases + ' รายการ' : '');
+      }).catch(function (e) {
+        loaded();
+        if (e.error !== 'HAS_CASES') { toast(e.message || 'ลบไม่สำเร็จ'); return; }
+        confirmBox({ title: 'ลบพร้อมประวัติด้วย?', text: e.message + ' ถ้าลบ ประวัติและไฟล์หลักฐานของคนเหล่านี้จะถูกลบด้วย', ok: 'ลบพร้อมประวัติ', danger: true })
+          .then(function (ok) { if (ok) run(true); });
+      });
+    };
+    ask.then(function (ok) { if (ok) run(false); });
   }
   function vAdmStudents() {
     var list = S.adm.students, classes = [];
@@ -2424,9 +2758,13 @@
             .catch(function (err) { closeSheet(); toast(err.message || 'โหลดสถานะ LINE ไม่สำเร็จ'); });
           break;
         }
-        S.aq = ''; S.acls = 'all';
+        S.aq = ''; S.acls = 'all'; S.asel = null;
         push({ v: 'adm-' + v }); loadAdm(v, true);
         if (v === 'subjects') loadAdm('users');
+        break;
+      case 'ph-pick': var fsp = $('fStuPh'); fsp.value = ''; fsp.setAttribute('data-id', id); fsp.click(); break;
+      case 'ph-remove':
+        confirmBox({ title: 'ลบรูปนักเรียน?', text: 'ลบรูปออกจากระบบ ใส่ใหม่ได้ภายหลัง', ok: 'ลบรูป', danger: true }).then(function (ok) { if (ok) savePhoto(id, ''); });
         break;
       case 'dev-pick': $('fDev').value = ''; $('fDev').click(); break;
       case 'dev-nophoto': s.photo = ''; renderSheet(); break;
@@ -2458,6 +2796,23 @@
       case 'astat': S.astat = v; render(); break;
       case 'stu-status': setStudentStatus(id, v); break;
       case 'stu-delete': deleteStudent(id); break;
+      case 'sum-open': push({ v: 'sum', scope: v }); if (S.user.role !== 'student') loadStudents(); break;
+      case 'sum-cls': var tp = S.stack[S.stack.length - 1]; if (tp && tp.v === 'sum') { tp.cls = v; render(); } break;
+      case 'asel-on': S.asel = {}; render(); break;
+      case 'asel-off': S.asel = null; render(); break;
+      case 'asel-clear': S.asel = {}; render(); break;
+      case 'asel-t': if (S.asel) { if (S.asel[id]) delete S.asel[id]; else S.asel[id] = true; haptic(); var al0 = $('alist'); if (al0) al0.innerHTML = admStudentRows(); } break;
+      case 'asel-all':
+        if (!S.asel) break;
+        var fl = admFiltered(), allOn = fl.length && fl.every(function (x) { return S.asel[x.id]; });
+        fl.forEach(function (x) { if (allOn) delete S.asel[x.id]; else S.asel[x.id] = true; });
+        var al1 = $('alist'); if (al1) al1.innerHTML = admStudentRows();
+        break;
+      case 'adel-sel': if (S.asel) deleteMany(Object.keys(S.asel), 'นักเรียนที่เลือก ' + Object.keys(S.asel).length + ' คน'); break;
+      case 'adel-all':
+        var fa = admFiltered();
+        deleteMany(fa.map(function (x) { return x.id; }), fa.length === (S.adm.students || []).length ? 'นักเรียนทั้งหมด ' + fa.length + ' คน' : 'นักเรียนที่แสดงอยู่ ' + fa.length + ' คน' + (S.acls !== 'all' ? ' (ห้อง ' + S.acls + ')' : ''));
+        break;
       case 'user-delete': deleteUser(id); break;
       case 'subj-delete': deleteSubject(id); break;
       case 'mg-add':
@@ -2467,7 +2822,10 @@
         break;
       case 'mg-import': openSheet({ kind: 'import', txt: '' }); break;
       case 'export-xlsx':
-        if (v === 'filter') {
+        if (v && v.indexOf('sum:') === 0) {
+          var sc = v.slice(4), scls = sumClasses();
+          exportExcel(S.cases.filter(function (c) { return sc === '*' ? scls.indexOf(c.classroom) >= 0 : c.classroom === sc; }), sc === '*' ? '' : sc);
+        } else if (v === 'filter') {
           var q2 = S.q.trim().toLowerCase();
           exportExcel(S.cases.filter(function (c) {
             return passFilter(c, S.filter) && (!q2 || (c.studentName + ' ' + c.sid + ' ' + c.classroom + ' ' + c.subjectName).toLowerCase().indexOf(q2) >= 0);
