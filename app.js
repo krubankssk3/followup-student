@@ -209,10 +209,32 @@
     if (!hasSwal()) { toast(title); return; }
     swalFire({ icon: 'success', title: title, text: text || '', timer: 1900, timerProgressBar: true, showConfirmButton: false, customClass: { popup: 'sw-pop' } });
   }
+  /* ---------- หน้าโหลด (Tailwind) ---------- */
+  var SHIMMER = '<span class="tw-pointer-events-none tw-absolute tw-inset-0 tw--translate-x-full tw-animate-shimmer tw-bg-gradient-to-r tw-from-transparent tw-via-white/50 tw-to-transparent"></span>';
   function skeleton(n) {
-    var h = '<div class="group">';
-    for (var i = 0; i < (n || 4); i++) h += '<div class="sk-row"><div class="sk sk-c"></div><div style="flex:1"><div class="sk sk-l" style="width:' + (55 + (i * 13) % 35) + '%"></div><div class="sk sk-l" style="width:' + (30 + (i * 17) % 30) + '%"></div></div></div>';
+    var h = '<div class="tw-mb-3 tw-flex tw-items-center tw-gap-2 tw-text-[13px] tw-text-[var(--muted)]"><span class="tw-relative tw-flex tw-h-2.5 tw-w-2.5"><span class="tw-absolute tw-inline-flex tw-h-full tw-w-full tw-animate-ping tw-rounded-full tw-bg-[var(--brand)] tw-opacity-60"></span><span class="tw-relative tw-inline-flex tw-h-2.5 tw-w-2.5 tw-rounded-full tw-bg-[var(--brand)]"></span></span>กำลังโหลดข้อมูลล่าสุด</div><div class="group">';
+    for (var i = 0; i < (n || 4); i++) {
+      h += '<div class="sk-row tw-relative tw-overflow-hidden" style="animation:fade .4s ' + (i * 0.08) + 's both"><div class="sk sk-c tw-rounded-2xl"></div><div style="flex:1"><div class="sk sk-l" style="width:' + (55 + (i * 13) % 35) + '%"></div><div class="sk sk-l" style="width:' + (30 + (i * 17) % 30) + '%"></div></div>' +
+        '<div class="sk tw-h-7 tw-w-14 tw-rounded-full"></div>' + SHIMMER + '</div>';
+    }
     return h + '</div>';
+  }
+  /** ตัวโหลดแบบวงโคจร ใช้ในหน้าต่างและส่วนย่อย */
+  function twLoad(text) {
+    return '<div class="tw-flex tw-flex-col tw-items-center tw-justify-center tw-gap-3 tw-py-10 tw-text-[var(--muted)]">' +
+      '<div class="tw-relative tw-h-14 tw-w-14"><div class="tw-absolute tw-inset-0 tw-rounded-full tw-border-4 tw-border-[var(--brand-soft)]"></div>' +
+      '<div class="tw-absolute tw-inset-0 tw-rounded-full tw-border-4 tw-border-transparent tw-border-t-[var(--brand)] tw-animate-spin"></div>' +
+      '<div class="tw-absolute tw-inset-[14px] tw-rounded-full tw-bg-[var(--brand)] tw-opacity-80 tw-animate-ping"></div></div>' +
+      '<span class="tw-text-[14px] tw-font-medium">' + esc(text || 'กำลังโหลด') + '</span></div>';
+  }
+  /** ไอคอนของหน้าว่าง: กล่องไล่สีลอยเบาๆ */
+  function emptyIc(name, size) {
+    return '<span class="tw-relative tw-mb-1 tw-grid tw-h-20 tw-w-20 tw-place-items-center tw-overflow-hidden tw-rounded-[26px] tw-bg-[var(--brand-soft)] tw-text-[var(--brand)] tw-shadow-[0_12px_30px_var(--glow)] tw-animate-floaty">' +
+      '<span class="tw-absolute tw-inset-0 tw-bg-gradient-to-br tw-from-white/60 tw-to-transparent"></span><span class="tw-relative">' + ic(name, size || 34) + '</span></span>';
+  }
+  /** แถบโหลดบางๆ ด้านบนจอ ระหว่างซิงก์ข้อมูล */
+  function topBar() {
+    return S.syncing ? '<div class="tw-fixed tw-inset-x-0 tw-top-0 tw-z-[1400] tw-h-[3px] tw-overflow-hidden tw-bg-[var(--brand-soft)] no-print"><div class="tw-h-full tw-w-1/3 tw-animate-loadbar tw-rounded-full tw-bg-gradient-to-r tw-from-transparent tw-via-[var(--brand)] tw-to-transparent tw-shadow-[0_0_12px_var(--brand)]"></div></div>' : '';
   }
 
   /* ---------- cache ---------- */
@@ -602,7 +624,7 @@
     var t = tally(cs);
     return '<div class="tally">' + TYPES.map(function (k) {
       var inner = typeStamp(k, true) + '<span class="tally-n">' + t[k] + '</span><span class="tally-l">' + TDESC[k] + '<br>ยังไม่แก้เสร็จ</span>';
-      return clickable ? '<button class="tally-i" data-act="goto-filter" data-v="' + k + '">' + inner + '</button>' : '<div class="tally-i">' + inner + '</div>';
+      return clickable ? '<button class="tally-i tw-transition tw-duration-200 hover:tw--translate-y-1 hover:tw-shadow-[0_14px_30px_var(--glow)]" data-act="goto-filter" data-v="' + k + '">' + inner + '</button>' : '<div class="tally-i tw-transition tw-duration-200 hover:tw--translate-y-1">' + inner + '</div>';
     }).join('') + '</div>';
   }
 
@@ -612,7 +634,7 @@
       '<button type="button" class="pw-eye" data-act="eye" aria-label="แสดงรหัสผ่าน">' + ic('eye', 20) + '</button></span></label>' + (hint ? '<p class="hint">' + hint + '</p>' : '');
   }
   function vLogin() {
-    return '<div class="login"><div class="login-top">' + emblem() +
+    return '<div class="login tw-relative tw-isolate">' + loginDeco() + '<div class="login-top">' + emblem() +
       '<div class="lg-school">' + esc(C.SCHOOL || 'โรงเรียนบ้านละลม') + '</div><h1 class="lg-h">' + esc(C.APP_NAME || 'ติดตามการแก้ 0 ร มส') + '</h1></div>' +
       '<div class="login-card"><div class="lg-stamps" aria-hidden="true">' + typeStamp('0') + typeStamp('ร') + typeStamp('มส') + '</div>' +
       '<form id="loginForm" novalidate>' +
@@ -623,6 +645,12 @@
       '<p class="demo-tag">ลืมรหัสผ่าน นักเรียนติดต่อครูที่ปรึกษา ครูติดต่องานวัดผล</p>' +
       '<a class="pub-link" href="./">' + ic('chart', 20) + 'กลับหน้าหลัก สถิติของโรงเรียน</a></div>' +
       '<p class="foot">' + FOOT + '</p></div>';
+  }
+  function loginDeco() {
+    return '<div class="tw-pointer-events-none tw-absolute tw-inset-0 tw--z-10 tw-overflow-hidden" aria-hidden="true">' +
+      '<div class="tw-absolute tw--left-20 tw-top-10 tw-h-64 tw-w-64 tw-rounded-full tw-bg-[var(--glow)] tw-blur-3xl tw-animate-blob"></div>' +
+      '<div class="tw-absolute tw--right-16 tw-top-1/3 tw-h-72 tw-w-72 tw-rounded-full tw-bg-[var(--glow-2)] tw-blur-3xl tw-animate-blob" style="animation-delay:-5s"></div>' +
+      '<div class="tw-absolute tw-bottom-0 tw-left-1/4 tw-h-56 tw-w-56 tw-rounded-full tw-bg-[var(--glow-3)] tw-blur-3xl tw-animate-blob" style="animation-delay:-9s"></div></div>';
   }
   function pwFormHtml(id) {
     return '<form id="' + id + '" novalidate>' +
@@ -864,7 +892,7 @@
     var h = header('อนุมัติผลการแก้', 'ครูผู้สอนให้ผ่านแล้ว รอบันทึกผล', refreshBtn(''));
     h += '<main class="main">' + syncNote();
     if (!S.loaded) return h + loadingHtml() + '</main>';
-    if (!list.length) return h + '<div class="group"><div class="soon">' + ic('seal', 32) + '<b>ไม่มีรายการรออนุมัติ</b><span>เมื่อครูตรวจหลักฐานและให้ผ่านแล้วจะขึ้นที่นี่</span></div></div></main>';
+    if (!list.length) return h + '<div class="group"><div class="soon">' + emptyIc('seal', 32) + '<b>ไม่มีรายการรออนุมัติ</b><span>เมื่อครูตรวจหลักฐานและให้ผ่านแล้วจะขึ้นที่นี่</span></div></div></main>';
     h += '<button class="btn btn-primary btn-block" data-act="approve-all" style="margin-bottom:14px">' + ic('seal') + 'อนุมัติทั้งหมด ' + list.length + ' รายการ</button><div class="group">';
     h += list.map(function (c) { return '<div class="row-split">' + caseRow(c, true) + '<button class="mini" data-act="approve" data-id="' + esc(c.id) + '">' + ic('check', 18) + 'อนุมัติ</button></div>'; }).join('');
     return h + '</div></main>';
@@ -1034,9 +1062,9 @@
     var classes = sumClasses(), mgr = isManager();
     if (!classes.length && !mgr) return '';
     var h = '<div class="sec" style="margin-top:4px"><h2>รายงานสรุป</h2></div><div class="sum-cards">';
-    if (mgr) h += '<button class="sum-c" data-act="sum-open" data-v="all"><span class="sum-ic">' + ic('chart', 24) + '</span><b>สรุปภาพรวมทั้งโรงเรียน</b><span>ประเภท ระดับชั้น ห้อง รายวิชา ครูผู้สอน พร้อมข้อสังเกต</span></button>';
-    if (classes.length) h += '<button class="sum-c" data-act="sum-open" data-v="class"><span class="sum-ic c2">' + ic('users', 24) + '</span><b>' + (mgr ? 'สรุปรายห้อง' : 'สรุปห้อง ' + esc(classes[0])) + '</b><span>รายชื่อนักเรียน วิชาที่ค้าง สถานะ สำหรับครูที่ปรึกษา</span></button>';
-    if (mgr && classes.length > 1) h += '<button class="sum-c" data-act="sum-open" data-v="classes"><span class="sum-ic c3">' + ic('printer', 24) + '</span><b>สรุปทุกห้อง</b><span>พิมพ์รายงานสรุปของทุกห้องต่อกัน ห้องละหน้า (' + classes.length + ' ห้อง)</span></button>';
+    if (mgr) h += '<button class="sum-c tw-relative tw-overflow-hidden" data-act="sum-open" data-v="all"><span class="sum-ic">' + ic('chart', 24) + '</span><b>สรุปภาพรวมทั้งโรงเรียน</b><span>ประเภท ระดับชั้น ห้อง รายวิชา ครูผู้สอน พร้อมข้อสังเกต</span></button>';
+    if (classes.length) h += '<button class="sum-c tw-relative tw-overflow-hidden" data-act="sum-open" data-v="class"><span class="sum-ic c2">' + ic('users', 24) + '</span><b>' + (mgr ? 'สรุปรายห้อง' : 'สรุปห้อง ' + esc(classes[0])) + '</b><span>รายชื่อนักเรียน วิชาที่ค้าง สถานะ สำหรับครูที่ปรึกษา</span></button>';
+    if (mgr && classes.length > 1) h += '<button class="sum-c tw-relative tw-overflow-hidden" data-act="sum-open" data-v="classes"><span class="sum-ic c3">' + ic('printer', 24) + '</span><b>สรุปทุกห้อง</b><span>พิมพ์รายงานสรุปของทุกห้องต่อกัน ห้องละหน้า (' + classes.length + ' ห้อง)</span></button>';
     return h + '</div>';
   }
   function vReportTab() {
@@ -1046,7 +1074,7 @@
     h += '<main class="main">';
     if (!S.loaded) return h + loadingHtml() + '</main>';
     h += sumCards();
-    if (!classes.length) return h + '<div class="group"><div class="soon">' + ic('printer', 32) + '<b>ยังไม่มีข้อมูลสำหรับรายงาน</b><span>เมื่อครูบันทึกนักเรียนที่ติด 0 ร มส แล้วรายงานจะขึ้นที่นี่</span></div></div></main>';
+    if (!classes.length) return h + '<div class="group"><div class="soon">' + emptyIc('printer', 32) + '<b>ยังไม่มีข้อมูลสำหรับรายงาน</b><span>เมื่อครูบันทึกนักเรียนที่ติด 0 ร มส แล้วรายงานจะขึ้นที่นี่</span></div></div></main>';
     h += '<div class="sec"><h2>ตารางสรุปรายห้อง</h2></div><div class="group"><div class="tbl-wrap"><table class="p-tbl" style="min-width:0;font-size:14px"><thead><tr><th>ห้อง</th><th>0</th><th>ร</th><th>มส</th><th>แก้เสร็จ</th></tr></thead><tbody>';
     classes.forEach(function (cl) {
       var a = cs.filter(function (c) { return c.classroom === cl; }), t = tally(a);
@@ -1079,7 +1107,7 @@
   function vNotif() {
     var un = unread();
     var h = header('แจ้งเตือน', un ? 'ยังไม่อ่าน ' + un + ' รายการ' : 'อ่านครบแล้ว', un ? '<button class="ib" style="width:auto;padding:0 12px;font-size:14px;font-weight:600" data-act="read-all">อ่านทั้งหมด</button>' : refreshBtn(''));
-    h += '<main class="main">' + syncNote() + '<div class="group">' + (!S.loaded ? '<div class="soon"><span class="spin"></span></div>' : (S.notifs.length ? S.notifs.map(function (n) {
+    h += '<main class="main">' + syncNote() + '<div class="group">' + (!S.loaded ? twLoad('กำลังโหลด') : (S.notifs.length ? S.notifs.map(function (n) {
       var ni = notifIcon(n.type);
       return '<button class="nf' + (n.read ? '' : ' unread') + '" data-act="open-notif" data-id="' + esc(n.id) + '"><span class="nf-ic ' + ni[1] + '">' + ic(ni[0], 20) + '</span><span><b>' + esc(n.title) + '</b><span>' + esc(n.body) + '</span><time>' + ago(n.at) + '</time></span></button>';
     }).join('') : '<div class="empty">ยังไม่มีแจ้งเตือน</div>')) + '</div></main>';
@@ -1175,6 +1203,7 @@
     else if (top.v === 'report-class') app.innerHTML = vReportClass(top.cls);
     else if (top.v === 'report') app.innerHTML = vReport(top.sid);
     else if (top.v === 'sum') app.innerHTML = vSum(top);
+    if (S.syncing) app.insertAdjacentHTML('afterbegin', topBar());
     var key = top ? top.v + ':' + (top.id || top.sid || top.cls || top.scope || '') : 'tab:' + S.tab;
     if (key !== S.viewKey) {
       S.viewKey = key;
@@ -1246,8 +1275,8 @@
   function shImg() {
     var s = S.sheet, body;
     if (s.err) body = '<div class="group"><div class="empty">' + esc(s.err) + '</div></div>';
-    else if (!s.src) body = '<div class="soon"><span class="spin"></span><span>กำลังเปิดไฟล์</span></div>';
-    else if (s.pdf) body = '<div class="group"><div class="soon">' + ic('file', 40) + '<b>ไฟล์ PDF</b><a class="btn btn-primary" href="' + s.src + '" target="_blank" rel="noopener" download="' + esc(s.name) + '">เปิดไฟล์ PDF</a></div></div>';
+    else if (!s.src) body = twLoad('กำลังเปิดไฟล์');
+    else if (s.pdf) body = '<div class="group"><div class="soon">' + emptyIc('file', 40) + '<b>ไฟล์ PDF</b><a class="btn btn-primary" href="' + s.src + '" target="_blank" rel="noopener" download="' + esc(s.name) + '">เปิดไฟล์ PDF</a></div></div>';
     else body = '<div class="viewer"><img src="' + s.src + '" alt="' + esc(s.name) + '"></div>';
     return '<h3 class="sh-t">' + esc(s.name) + '</h3><p class="sh-s">หลักฐานที่นักเรียนแนบ</p>' + body + '<button class="btn btn-ghost btn-block" data-act="close-sheet" style="margin-top:14px">ปิด</button>';
   }
@@ -1842,7 +1871,7 @@
   function shLineStatus() {
     var d = S.sheet.data;
     var h = '<h3 class="sh-t">LINE OA ของโรงเรียน</h3>';
-    if (!d) return h + '<div class="soon"><span class="spin"></span></div>';
+    if (!d) return h + twLoad('กำลังโหลด');
     h += '<div class="group" style="margin-bottom:14px"><dl class="kv">' +
       '<dt>สถานะ</dt><dd>' + (d.enabled && d.hasToken ? '<span class="chip ch-ok">เปิดใช้งาน</span>' : '<span class="chip ch-bad">ยังไม่เปิด</span>') + '</dd>' +
       '<dt>บัญชี</dt><dd>' + (d.bot ? esc(d.bot.name + ' ' + d.bot.basicId) : '-') + '</dd>' +
@@ -1859,7 +1888,7 @@
 
   function shBackup() {
     var d = S.sheet.data, h = '<h3 class="sh-t">สำรองข้อมูลอัตโนมัติ</h3><p class="sh-s">คัดลอก Google Sheet ทั้งไฟล์ไว้ใน Drive ทุกวันอาทิตย์ ตี 2</p>';
-    if (!d) return h + '<div class="soon"><span class="spin"></span></div>';
+    if (!d) return h + twLoad('กำลังโหลด');
     var on = d.enabled && d.scheduled;
     h += '<button class="toggle" data-act="bk-toggle" style="margin-bottom:10px"' + (S.sheet.busy ? ' disabled' : '') + '><span><b>สำรองทุกสัปดาห์</b><br><small class="t-muted">' +
       (on ? 'เปิดอยู่ ครั้งต่อไปวันอาทิตย์ 02:00 น.' : (d.enabled && !d.scheduled ? 'ยังไม่ได้ตั้งเวลา แตะเพื่อเปิดใหม่' : 'ปิดอยู่')) + '</small></span><span class="sw' + (on ? ' on' : '') + '"></span></button>';
@@ -1887,7 +1916,7 @@
   ];
   function shDev() {
     var s = S.sheet, d = s.data, h = '<h3 class="sh-t">ประวัติผู้พัฒนา</h3><p class="sh-s">แสดงเมื่อกดปุ่ม ประวัติผู้พัฒนา ที่หน้าแรก ช่องไหนว่างจะไม่แสดง</p>';
-    if (!d) return h + '<div class="soon"><span class="spin"></span></div>';
+    if (!d) return h + twLoad('กำลังโหลด');
     var p = s.form || (s.form = JSON.parse(JSON.stringify(d.profile || {})));
     var ph = s.photo !== undefined ? s.photo : d.photo;
     h += '<div class="dev-ph"><div class="dev-ph-i">' + (ph ? '<img src="' + esc(ph) + '" alt="">' : ic('user', 44)) + '</div><div class="dev-ph-b">' +
@@ -2359,7 +2388,7 @@
   }
   function importPreview() {
     var sh = S.sheet;
-    if (sh.reading) return '<div class="imp-read"><span class="spin"></span>' + esc(sh.reading) + '</div>';
+    if (sh.reading) return twLoad(sh.reading);
     var p = parseImport(sh.txt);
     if (!p.rows.length) return '<div class="hint" style="margin:8px 0 14px">' + (sh.txt && sh.txt.trim() ? 'ยังหาเลขประจำตัวนักเรียนในข้อมูลไม่เจอ ตรวจว่ามีคอลัมน์เลขประจำตัว (ตัวเลข 4-12 หลัก)' : 'ยังไม่มีข้อมูล') + '</div>';
     var noCls = p.rows.filter(function (r) { return !r.classroom; }).length, noName = p.rows.filter(function (r) { return !r.firstName; }).length;
