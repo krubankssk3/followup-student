@@ -1032,3 +1032,52 @@ body.swal2-toast-shown .swal2-container,.swal2-container:has(.swal2-toast){backg
 .seg.phb-mode button b{font-size:15px;line-height:1.3}
 .seg.phb-mode button:only-child{grid-column:1/-1}
 .seg.phb-mode button[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+
+/* ===== ช่องลงนาม: ลายเซ็นกึ่งกลางเหนือเส้นประ ปรับตำแหน่งได้ ===== */
+.p-sign .sig{line-height:1.8}
+.sig-ln{display:flex;align-items:flex-end;justify-content:center;gap:6px}
+.sig-l{flex:none;padding-bottom:2px}
+.sig-dots{position:relative;display:inline-block;width:170px;height:24px;border-bottom:1.6px dotted #555}
+.sig-img2{position:absolute;left:50%;bottom:3px;height:calc(50px * var(--ss,1));max-width:calc(190px * var(--ss,1));object-fit:contain;transform:translate(calc(-50% + var(--sx,0px)),var(--sy,0px));pointer-events:none;z-index:1}
+.sig-nm{margin-top:2px}
+.sp-paper{background:#fff;color:#111;border:1px solid var(--line);border-radius:16px;padding:56px 16px 18px;margin:4px 0 12px;background-image:linear-gradient(rgba(110,75,201,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(110,75,201,.06) 1px,transparent 1px);background-size:16px 16px}
+.sp-paper .sig-img2.sp-drag{pointer-events:auto;cursor:grab;outline:1.5px dashed rgba(110,75,201,.55);outline-offset:2px;border-radius:4px;touch-action:none}
+.sp-paper .sig-img2.sp-drag:active{cursor:grabbing}
+.sp-ph{position:absolute;left:50%;bottom:3px;height:calc(44px * var(--ss,1));width:calc(130px * var(--ss,1));transform:translate(calc(-50% + var(--sx,0px)),var(--sy,0px));display:grid;place-items:center;border:1.5px dashed #6E4BC9;border-radius:8px;color:#6E4BC9;font-size:13px;background:rgba(110,75,201,.08);cursor:grab;touch-action:none}
+.sp-r{display:block;margin:8px 2px}
+.sp-r span{display:flex;justify-content:space-between;font-size:13.5px;font-weight:600}
+.sp-r b{color:var(--brand)}
+.sp-r input{width:100%;accent-color:var(--brand)}
+.sig-posb{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--brand);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.g-sign{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:10px 12px;border-radius:14px;background:var(--surface-2)}
+.g-sign img{height:44px;max-width:140px;object-fit:contain;background:#fff;border-radius:8px;padding:2px 6px}
+.g-sign small{color:var(--muted)}
+
+/* ===== ครูผู้สอน: เครื่องมือในหน้ารายการ ===== */
+.t-tools{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.t-tools .fchip{display:inline-flex;align-items:center;gap:6px}
+
+/* ===== งานวัดผลตรวจสอบ → แอดมินอนุมัติ ===== */
+.flow-strip{display:flex;align-items:center;gap:6px;margin:0 0 14px;padding:10px 12px;border-radius:16px;background:var(--surface);border:1px solid var(--line);overflow-x:auto}
+.flow-strip .fs{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap}
+.flow-strip .fs+.fs::before{content:"";width:22px;height:2px;background:var(--line);margin-right:2px}
+.flow-strip .fs i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);color:#fff;font-style:normal}
+.flow-strip .fs.done i{background:var(--ok);border-color:var(--ok)}
+.flow-strip .fs.cur{color:var(--brand);font-weight:700}
+.flow-strip .fs.cur i{border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-soft)}
+.ap-btns{display:flex;gap:6px;margin-right:10px;flex:none}
+.ap-btns .mini{margin-right:0}
+.mini-ghost{background:var(--surface-2);color:var(--ink)}
+.mini-bell{background:var(--ror-soft);color:var(--ror);padding:0 10px}
+
+/* ===== ครูที่ปรึกษา: ห้องของฉัน ===== */
+.adv-kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.adv-k{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border-radius:18px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;transition:transform .15s,border-color .15s}
+.adv-k:hover{transform:translateY(-2px)}
+.adv-k[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft)}
+.adv-k b{font-size:18px}
+.adv-k span{font-size:12px;color:var(--muted)}
+.adv-chips{display:flex;flex-wrap:wrap;gap:4px}
+.adv-t{display:inline-flex;align-items:center;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px}
+.adv-t.t0{background:var(--zero-soft);color:var(--zero)}.adv-t.tr{background:var(--ror-soft);color:var(--ror)}.adv-t.tm{background:var(--ms-soft,var(--brand-soft));color:var(--ms,var(--brand))}
+.adv-subj{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
