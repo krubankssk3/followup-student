@@ -14,7 +14,7 @@
   var CACHE_KEY = 'followup_cache_';
   var DAY = 86400000;
   var TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-  var STEPS = ['รับทราบ', 'ทำงาน', 'ส่งหลักฐาน', 'ครูตรวจ', 'อนุมัติ'];
+  var STEPS = ['บันทึกผล', 'ครูติดตาม', 'ครูให้ผล', 'งานวัดผลตรวจ', 'อนุมัติ'];
   var TYPES = ['0', 'ร', 'มส'];
   var TASKS = {
     '0': ['รับใบงานซ่อมเสริมจากครู', 'ทำใบงานซ่อมเสริมให้ครบ', 'สอบแก้ตัวตามวันที่ครูนัด'],
@@ -289,7 +289,7 @@
     if (c.status === 'APPROVED') return 9e15 - (c.upd || 0);
     if (c.status === 'REPEAT') return 8e15;
     if (c.status === 'HOLD') return 8.5e15;
-    if (c.status === 'SUBMITTED' || c.status === 'PASSED') return 4e15 + (c.due || 0);
+    if (c.status === 'SUBMITTED' || c.status === 'PASSED' || c.status === 'VERIFIED') return 4e15 + (c.due || 0);
     return c.due || 0;
   }
   function byUrg(a, b) { return urgency(a) - urgency(b); }
@@ -309,8 +309,8 @@
   function typeStamp(t, lg) { return '<span class="stamp ' + tcls(t) + (lg ? ' lg' : '') + '">' + t + '</span>'; }
   function chip(c) {
     var m = {
-      OPEN: ['รอรับทราบ', 'warn'], DOING: [c.rejectNote ? 'ครูขอให้แก้' : 'กำลังแก้', 'warn'], SUBMITTED: ['รอครูตรวจ', 'info'],
-      PASSED: ['รออนุมัติ', 'info'], APPROVED: ['แก้เสร็จ', 'ok'], REPEAT: ['เรียนซ้ำ', 'bad'], HOLD: [HOLD_LABEL[c.hold] || 'แขวน', 'hold']
+      OPEN: ['รอครูติดตาม', 'warn'], DOING: [c.rejectNote ? 'ส่งกลับให้ครูตรวจใหม่' : 'ครูกำลังติดตาม', 'warn'], SUBMITTED: ['ครูกำลังตรวจ', 'info'],
+      PASSED: ['รองานวัดผลตรวจ', 'info'], VERIFIED: ['รออนุมัติ', 'info'], APPROVED: ['แก้เสร็จ', 'ok'], REPEAT: ['เรียนซ้ำ', 'bad'], HOLD: [HOLD_LABEL[c.hold] || 'แขวน', 'hold']
     }[c.status] || [c.status, ''];
     if (isOverdue(c)) m = ['เลยกำหนด', 'bad'];
     return '<span class="chip ch-' + m[1] + '">' + m[0] + '</span>';
@@ -319,8 +319,9 @@
     if (c.status === 'APPROVED') return { t: 'แก้เสร็จ ' + thDate(c.upd), k: 'ok' };
     if (c.status === 'REPEAT') return { t: 'ต้องลงทะเบียนเรียนซ้ำ', k: 'bad' };
     if (c.status === 'HOLD') return { t: 'หยุดติดตามชั่วคราว', k: 'muted' };
-    if (c.status === 'SUBMITTED') return { t: 'ส่งแล้ว รอครูตรวจ', k: 'info' };
-    if (c.status === 'PASSED') return { t: 'ผ่านแล้ว รองานวัดผลอนุมัติ', k: 'info' };
+    if (c.status === 'SUBMITTED') return { t: 'ครูผู้สอนกำลังตรวจ', k: 'info' };
+    if (c.status === 'PASSED') return { t: 'ครูให้ผ่านแล้ว รองานวัดผลตรวจสอบ', k: 'info' };
+    if (c.status === 'VERIFIED') return { t: 'งานวัดผลตรวจแล้ว รอผู้ดูแลระบบอนุมัติ', k: 'info' };
     if (!c.due) return { t: 'ไม่ได้กำหนดวันส่ง', k: 'muted' };
     var d = daysLeft(c.due);
     if (d < 0) return { t: 'เลยกำหนด ' + (-d) + ' วัน', k: 'bad' };
@@ -329,10 +330,9 @@
   }
   function stepIdx(c) {
     switch (c.status) {
-      case 'OPEN': return 0;
-      case 'DOING': return allDone(c) ? 2 : 1;
-      case 'SUBMITTED': return 3;
-      case 'PASSED': return 4;
+      case 'OPEN': case 'DOING': case 'SUBMITTED': return 1;
+      case 'PASSED': return 3;
+      case 'VERIFIED': return 4;
       case 'APPROVED': return 5;
       default: return -1;
     }
@@ -350,7 +350,7 @@
     var sub = who ? c.subjectName + ' ' + c.classroom : c.subject + ' ' + c.teacherName;
     var line = chip(c);
     if (c.status === 'OPEN' || c.status === 'DOING') line += '<span class="t-' + di.k + '">' + di.t + '</span>';
-    else if (c.status === 'PASSED') line += '<span>ได้ระดับ ' + esc(c.grade) + '</span>';
+    else if (c.status === 'PASSED' || c.status === 'VERIFIED') line += '<span>ได้ระดับ ' + esc(c.grade) + '</span>';
     return '<button class="row" data-act="open-case" data-id="' + esc(c.id) + '">' + stamp(c) +
       '<span class="row-main"><span class="row-t">' + esc(title) + '</span><span class="row-s">' + esc(sub) + '</span><span class="row-s">' + line + '</span></span>' +
       '<span class="chev">' + ic('chev', 20) + '</span></button>';
@@ -688,33 +688,34 @@
     if (held.length) h += '<div class="banner info" style="margin:0 0 14px">' + ic('clock') + '<div><b>' + (HOLD_LABEL[held[0].hold] || 'แขวนการติดตาม') + ' ' + held.length + ' วิชา</b><p>' + esc(held[0].holdNote || 'ติดต่อครูที่ปรึกษาหากมีข้อสงสัย') + '</p></div></div>';
     var next = null;
     for (var i = 0; i < cs.length; i++) { if (cs[i].status === 'OPEN' || cs[i].status === 'DOING') { next = cs[i]; break; } }
+    if (cs.length) h += '<div class="banner info" style="margin:0 0 14px">' + ic('eye') + '<div><b>หน้านี้สำหรับดูสถานะ ไม่ต้องกดอะไร</b><p>ครูผู้สอนเป็นผู้ติดตามและบันทึกผลให้ ทำตามที่ครูนัดหมาย แล้วรอดูผลที่นี่</p></div></div>';
     if (next) h += focusCard(next);
-    else if (open.length) h += '<div class="banner info">' + ic('clock') + '<div><b>ส่งครบทุกวิชาแล้ว</b><p>รอครูตรวจและงานวัดผลอนุมัติ ระบบจะแจ้งเตือนเมื่อมีผล</p></div></div>';
+    else if (open.length) h += '<div class="banner info">' + ic('clock') + '<div><b>ครูให้ผลครบทุกวิชาแล้ว</b><p>รองานวัดผลตรวจสอบและผู้ดูแลระบบอนุมัติ ระบบจะแจ้งเตือนเมื่อมีผล</p></div></div>';
     else h += '<div class="banner ok">' + ic('seal') + '<div><b>ไม่มีวิชาที่ต้องแก้</b><p>เยี่ยมมาก รักษาผลการเรียนแบบนี้ต่อไป</p></div></div>';
     if (cs.length) h += '<div class="sec"><h2>ทุกวิชาที่ต้องแก้</h2></div><div class="group">' + cs.map(function (c) { return caseRow(c, false); }).join('') + '</div>';
     return h + '</main>';
   }
   function focusCard(c) {
     var di = dueInfo(c), doneN = c.tasks.filter(function (x) { return x.done; }).length;
-    var btn = c.status === 'OPEN'
-      ? '<button class="btn btn-primary btn-block" data-act="ack" data-id="' + esc(c.id) + '">' + ic('check') + 'รับทราบและเริ่มแก้</button>'
-      : '<button class="btn btn-primary btn-block" data-act="open-case" data-id="' + esc(c.id) + '">' + (c.rejectNote ? 'แก้หลักฐานตามที่ครูขอ' : 'ทำต่อ') + '</button>';
-    return '<section class="focus" style="margin-top:0" aria-label="วิชาที่ควรทำก่อน"><div class="focus-k">ควรทำวิชานี้ก่อน</div>' +
+    var btn = '<button class="btn btn-ghost btn-block" data-act="open-case" data-id="' + esc(c.id) + '">' + ic('eye', 20) + 'ดูรายละเอียด</button>';
+    return '<section class="focus" style="margin-top:0" aria-label="วิชาที่ใกล้ครบกำหนด"><div class="focus-k">ใกล้ครบกำหนดที่สุด</div>' +
       '<div class="focus-head">' + stamp(c, true) + '<div><div class="focus-sub">' + esc(c.subjectName) + '</div><div class="focus-meta">' + esc(c.subject) + ' ' + esc(c.teacherName) + '</div></div></div>' +
       '<div class="due t-' + di.k + '">' + ic('clock', 20) + di.t + '</div>' + stepsHtml(c) +
-      '<div class="focus-meta" style="margin-top:12px">ทำแล้ว ' + doneN + ' จาก ' + c.tasks.length + ' ข้อ</div>' + btn + '</section>';
+      '<div class="focus-meta" style="margin-top:12px">ครูบันทึกว่าทำแล้ว ' + doneN + ' จาก ' + c.tasks.length + ' ข้อ</div>' + btn + '</section>';
   }
 
   /* ---------- case detail (all roles) ---------- */
   function vCase(c) {
     if (!c) return header('ไม่พบรายการ', '', '', true) + '<main class="main"><div class="empty">รายการนี้ถูกลบหรือไม่มีสิทธิ์ดู</div></main>';
     var role = S.user.role, di = dueInfo(c);
-    var stuEdit = role === 'student' && (c.status === 'DOING' || c.status === 'OPEN');
+    var tEdit = isOwner(c) && role !== 'student' && (c.status === 'OPEN' || c.status === 'DOING' || c.status === 'SUBMITTED');
     var h = header(esc(c.subjectName), role === 'student' ? esc(c.subject) + ' ' + esc(c.teacherName) : esc(c.studentName) + ' ' + esc(c.classroom), refreshBtn(''), true);
     h += '<main class="main">';
     h += '<div class="hero">' + stamp(c, true) + '<div><div class="hero-t">' + typeName(c.type) + '</div><div class="hero-s">' + esc(c.cause || '-') + '</div>' +
       '<div class="hero-s">' + (c.type !== 'ร' ? 'แก้ครั้งที่ ' + c.attempt + ' จาก ' + setting('maxAttempts', 2) + ' ครั้ง ' : '') + 'ผลหลังแก้สูงสุด ' + capOf(c) + '</div></div></div>';
-    if (c.rejectNote && c.status === 'DOING') h += '<div class="banner bad">' + ic('alert') + '<div><b>ครูขอให้แก้หลักฐาน</b><p>' + esc(c.rejectNote) + '</p></div></div>';
+    if (role === 'student') h += '<div class="banner info">' + ic('eye') + '<div><b>ดูสถานะได้อย่างเดียว ไม่ต้องกดอะไร</b><p>ครูผู้สอน (' + esc(c.teacherName || '-') + ') เป็นผู้ติดตามและบันทึกผลให้ ถ้ามีข้อสงสัยให้ไปพบครูผู้สอน</p></div></div>';
+    if (c.rejectNote && c.status === 'DOING' && role !== 'student') h += '<div class="banner bad">' + ic('alert') + '<div><b>ส่งกลับให้ครูผู้สอนตรวจใหม่</b><p>' + esc(c.rejectNote) + '</p></div></div>';
+    if (tEdit) h += '<div class="t-tools no-print"><button class="fchip" data-act="follow-open" data-id="' + esc(c.id) + '">' + ic('chat', 16) + 'บันทึกการติดตาม</button><button class="fchip" data-act="edit-open" data-id="' + esc(c.id) + '">' + ic('settings', 16) + 'แก้ไขรายการ</button><button class="fchip" data-act="extend" data-id="' + esc(c.id) + '">' + ic('calendar', 16) + 'เลื่อน 7 วัน</button><button class="fchip" data-act="open-report" data-v="' + esc(c.sid) + '">' + ic('printer', 16) + 'พิมพ์รายงาน</button></div>';
     if (c.status === 'HOLD') h += '<div class="banner info">' + ic('clock') + '<div><b>' + (HOLD_LABEL[c.hold] || 'แขวนการติดตาม') + '</b><p>' + esc(c.holdNote || 'งานวัดผลหยุดการติดตามรายการนี้ไว้') + '</p></div></div>';
     if (c.status === 'REPEAT') h += '<div class="banner bad">' + ic('alert') + '<div><b>ต้องลงทะเบียนเรียนซ้ำ</b><p>' + (c.type === 'มส' && c.ms !== null ? 'เวลาเรียน ' + esc(c.ms) + '% ต่ำกว่าเกณฑ์' : 'แก้ครบจำนวนครั้งแล้วยังไม่ผ่าน') + ' ติดต่องานวัดผลเพื่อวางแผนเรียนซ้ำ</p></div></div>';
     if (c.status === 'APPROVED') h += '<div class="banner ok">' + ic('seal') + '<div><b>แก้เสร็จแล้ว ได้ระดับผลการเรียน ' + esc(c.grade) + '</b><p>งานวัดผลบันทึกผลแล้ว</p></div></div>';
@@ -723,17 +724,14 @@
     h += '<div class="group" style="padding:16px">' + (stepsHtml(c) || '<div class="t-muted" style="font-size:14px">ปิดรายการแล้ว</div>') + '</div>';
 
     var doneN = c.tasks.filter(function (x) { return x.done; }).length;
-    h += '<div class="sec"><h2>สิ่งที่ต้องทำ</h2><span class="t-muted" style="font-size:14px">' + doneN + '/' + c.tasks.length + '</span></div><div class="group">';
+    h += '<div class="sec"><h2>' + (role === 'student' ? 'สิ่งที่ต้องทำ' : 'สิ่งที่นักเรียนต้องทำ') + '</h2><span class="t-muted" style="font-size:14px">' + (tEdit ? 'ครูติ๊กเมื่อนักเรียนทำแล้ว · ' : '') + doneN + '/' + c.tasks.length + '</span></div><div class="group">';
     c.tasks.forEach(function (tk, i) {
-      h += '<button class="task' + (tk.done ? ' on' : '') + '" data-act="task" data-id="' + esc(c.id) + '" data-i="' + i + '"' + (stuEdit ? '' : ' disabled') + ' aria-pressed="' + !!tk.done + '"><span class="box">' + ic('check', 18) + '</span><span class="tt">' + esc(tk.t) + '</span></button>';
+      h += '<button class="task' + (tk.done ? ' on' : '') + '" data-act="task" data-id="' + esc(c.id) + '" data-i="' + i + '"' + (tEdit ? '' : ' disabled') + ' aria-pressed="' + !!tk.done + '"><span class="box">' + ic('check', 18) + '</span><span class="tt">' + esc(tk.t) + '</span></button>';
     });
     h += '</div>';
 
-    h += evidenceHtml(c, stuEdit);
-      '<span>' + (role === 'student' ? 'การถ่ายรูปและแนบไฟล์หลักฐานจะเปิดใช้ในขั้นถัดไป ระหว่างนี้ทำตามรายการด้านบนได้เลย' : 'นักเรียนจะแนบหลักฐานได้ในขั้นถัดไป') + '</span></div></div>';
-
-    if (stuEdit) h += '<div class="sec"><h2>ข้อความถึงครู</h2><span class="t-muted" style="font-size:13px" id="noteState"></span></div><textarea class="note" data-note="' + esc(c.id) + '" maxlength="500" placeholder="ไม่บังคับ เช่น ส่งใบงานครบ 2 บทแล้วครับ">' + esc(c.note) + '</textarea>';
-    else if (c.note) h += '<div class="sec"><h2>ข้อความจากนักเรียน</h2></div><div class="group" style="padding:14px 16px">' + esc(c.note) + '</div>';
+    h += evidenceHtml(c, tEdit);
+    if (c.note) h += '<div class="sec"><h2>ข้อความจากนักเรียน (เดิม)</h2></div><div class="group" style="padding:14px 16px">' + esc(c.note) + '</div>';
 
     if (role !== 'student') {
       h += '<div class="sec"><h2>ข้อมูลนักเรียน</h2><button class="link" data-act="open-student" data-v="' + esc(c.sid) + '">ดูทุกวิชา</button></div>';
@@ -760,7 +758,7 @@
     if (!list) return h + '<div class="group"><div class="soon" style="padding:18px"><span class="spin"></span></div></div>';
     var cur = curEvidence(c), old = list.filter(function (e) { return e.attempt !== c.attempt; });
     if (!cur.length && !up) {
-      h += '<div class="group"><div class="empty">' + (S.user.role === 'student' ? (editable ? 'ยังไม่ได้แนบ ถ่ายรูปงานหรือเลือกไฟล์จากเครื่องได้เลย' : 'ไม่มีไฟล์ในครั้งนี้') : 'นักเรียนยังไม่ได้แนบหลักฐาน') + '</div></div>';
+      h += '<div class="group"><div class="empty">' + (editable ? 'ไม่บังคับ ครูถ่ายรูปงานหรือผลสอบของนักเรียนเก็บไว้เป็นหลักฐานได้' : 'ไม่มีไฟล์หลักฐาน') + '</div></div>';
     } else {
       h += '<div class="ev">' + cur.map(function (e) { return evTile(e, editable && e.status !== 'ACCEPTED'); }).join('');
       for (var i = 0; i < up; i++) h += '<div class="ev-item"><div class="ev-open" style="display:grid;place-items:center;position:absolute;inset:0"><span class="spin"></span></div><span class="ev-cap">กำลังอัปโหลด</span></div>';
@@ -778,23 +776,16 @@
   }
   function caseActions(c) {
     var role = S.user.role, id = esc(c.id);
-    if (c.status === 'HOLD') return role === 'student' ? '' : actbar('<button class="btn btn-ghost" data-act="open-report" data-v="' + esc(c.sid) + '">' + ic('printer', 20) + 'พิมพ์รายงานนักเรียน</button>');
-    if (role === 'student') {
-      if (c.status === 'OPEN') return actbar('<button class="btn btn-primary" data-act="ack" data-id="' + id + '">' + ic('check') + 'รับทราบและเริ่มแก้</button>');
-      if (c.status === 'DOING') {
-        var n = curEvidence(c).length, busy = (S.uploading[c.id] || 0) > 0;
-        return actbar('<button class="btn btn-primary" data-act="submit" data-id="' + id + '"' + (n && !busy ? '' : ' disabled') + '>' + ic('send') + 'ส่งให้ครูตรวจ' + (n ? ' (' + n + ' ไฟล์)' : '') + '</button>', busy ? 'รออัปโหลดให้เสร็จก่อน' : (n ? '' : 'แนบหลักฐานอย่างน้อย 1 ไฟล์ก่อนส่ง'));
-      }
-      if (c.status === 'SUBMITTED') return actbar('<button class="btn btn-ghost" disabled>ส่งแล้ว ครูจะตรวจภายใน 1–2 วันทำการ</button>');
-      if (c.status === 'PASSED') return actbar('<button class="btn btn-ghost" disabled>ผ่านแล้ว รองานวัดผลอนุมัติ</button>');
-      return '';
-    }
-    var active = c.status === 'OPEN' || c.status === 'DOING';
-    if (isOwner(c) && c.status === 'SUBMITTED') return actbar('<button class="btn btn-ghost" data-act="reject-open" data-id="' + id + '">ส่งกลับให้แก้</button><button class="btn btn-primary" data-act="grade-open" data-id="' + id + '">ให้ผลการแก้</button>');
-    if ((role === 'measure' || role === 'admin') && c.status === 'PASSED') return actbar('<button class="btn btn-primary" data-act="approve" data-id="' + id + '">' + ic('seal') + 'อนุมัติผล ได้ระดับ ' + esc(c.grade) + '</button>');
-    if (isOwner(c) && active) return actbar('<button class="btn btn-ghost" data-act="extend" data-id="' + id + '">' + ic('calendar', 20) + 'เลื่อน 7 วัน</button><button class="btn btn-ok" data-act="remind" data-id="' + id + '">' + ic('bell', 20) + 'แจ้งเตือน</button>');
-    if (active) return actbar('<button class="btn btn-ok" data-act="remind" data-id="' + id + '">' + ic('bell', 20) + 'แจ้งเตือนนักเรียน</button>', role === 'teacher' ? 'คุณเป็นครูที่ปรึกษา ผลการแก้ให้ครูผู้สอนเป็นผู้บันทึก' : '');
-    return actbar('<button class="btn btn-ghost" data-act="open-report" data-v="' + esc(c.sid) + '">' + ic('printer', 20) + 'พิมพ์รายงานนักเรียน</button>');
+    if (role === 'student') return '';
+    var rep = '<button class="btn btn-ghost" data-act="open-report" data-v="' + esc(c.sid) + '">' + ic('printer', 20) + 'พิมพ์รายงานนักเรียน</button>';
+    if (c.status === 'HOLD') return actbar(rep);
+    var follow = c.status === 'OPEN' || c.status === 'DOING' || c.status === 'SUBMITTED';
+    if (isOwner(c) && follow) return actbar('<button class="btn btn-ok" data-act="remind" data-id="' + id + '">' + ic('bell', 20) + 'แจ้งเตือน</button><button class="btn btn-primary" data-act="grade-open" data-id="' + id + '">' + ic('seal', 20) + 'ให้ผลและลงนาม</button>');
+    if (c.status === 'PASSED' && role === 'measure') return actbar('<button class="btn btn-ghost" data-act="sendback-open" data-id="' + id + '">' + ic('back', 20) + 'ส่งกลับครู</button><button class="btn btn-primary" data-act="verify" data-id="' + id + '">' + ic('send', 20) + 'ตรวจแล้ว ส่งแอดมิน</button>');
+    if ((c.status === 'PASSED' || c.status === 'VERIFIED') && role === 'admin') return actbar('<button class="btn btn-ghost" data-act="sendback-open" data-id="' + id + '">' + ic('back', 20) + 'ส่งกลับครู</button><button class="btn btn-primary" data-act="approve" data-id="' + id + '">' + ic('seal') + 'อนุมัติ ได้ระดับ ' + esc(c.grade) + '</button>', c.status === 'PASSED' ? 'รายการนี้ยังไม่ผ่านการตรวจสอบของงานวัดผล' : 'งานวัดผลตรวจสอบแล้ว');
+    if (c.status === 'VERIFIED' && role === 'measure') return actbar('<button class="btn btn-ghost" disabled>ส่งผู้ดูแลระบบแล้ว รออนุมัติ</button>');
+    if (follow) return actbar('<button class="btn btn-ok" data-act="remind" data-id="' + id + '">' + ic('bell', 20) + 'แจ้งเตือนนักเรียน</button>', role === 'teacher' ? 'คุณเป็นครูที่ปรึกษา ครูผู้สอนเป็นผู้ติดตามและให้ผล' : '');
+    return actbar(rep);
   }
 
   /* ---------- teacher ---------- */
@@ -876,12 +867,12 @@
   /* ---------- measure ---------- */
   function vMeasureHome() {
     var cs = S.cases, done = cs.filter(function (c) { return c.status === 'APPROVED'; }).length;
-    var pend = cs.filter(function (c) { return c.status === 'PASSED'; }).length;
+    var pend = cs.filter(function (c) { return c.status === (isAdmin() ? 'VERIFIED' : 'PASSED'); }).length;
     var late = cs.filter(isOverdue).sort(byUrg);
-    var h = heroHeader('ภาพรวมทั้งโรงเรียน', term(), S.loaded ? '<div class="hero-row">' + ring(done, cs.length) + '<div class="hero-msg"><b>' + (pend ? 'รออนุมัติ ' + pend + ' รายการ' : 'ไม่มีรายการรออนุมัติ') + '</b><span>' + (late.length ? 'เลยกำหนด ' + late.length + ' รายการ' : 'ไม่มีรายการเลยกำหนด') + '</span></div></div>' : '');
+    var h = heroHeader('ภาพรวมทั้งโรงเรียน', term(), S.loaded ? '<div class="hero-row">' + ring(done, cs.length) + '<div class="hero-msg"><b>' + (pend ? (isAdmin() ? 'รออนุมัติ ' : 'รอตรวจสอบ ') + pend + ' รายการ' : (isAdmin() ? 'ไม่มีรายการรออนุมัติ' : 'ไม่มีรายการรอตรวจสอบ')) + '</b><span>' + (late.length ? 'เลยกำหนด ' + late.length + ' รายการ' : 'ไม่มีรายการเลยกำหนด') + '</span></div></div>' : '');
     h += '<main class="main">' + syncNote();
     if (!S.loaded) return h + loadingHtml() + '</main>';
-    if (pend) h += '<button class="banner info" style="width:100%;border:0;text-align:left;margin:0 0 14px" data-act="tab" data-v="approve">' + ic('seal') + '<div><b>มีผลรออนุมัติ ' + pend + ' รายการ</b><p>แตะเพื่อตรวจและอนุมัติ</p></div></button>';
+    if (pend) h += '<button class="banner info" style="width:100%;border:0;text-align:left;margin:0 0 14px" data-act="tab" data-v="approve">' + ic('seal') + '<div><b>' + (isAdmin() ? 'งานวัดผลส่งรายการรออนุมัติ ' : 'มีผลรอตรวจสอบ ') + pend + ' รายการ</b><p>' + (isAdmin() ? 'แตะเพื่ออนุมัติผล' : 'แตะเพื่อตรวจสอบแล้วส่งผู้ดูแลระบบ') + '</p></div></button>';
     h += tallyHtml(cs, false);
     h += '<div class="sec"><h2>ความคืบหน้ารายระดับชั้น</h2><span class="t-muted" style="font-size:14px">แก้เสร็จ ' + done + '/' + cs.length + '</span></div><div class="group bars">';
     [1, 2, 3].forEach(function (lv) {
@@ -895,16 +886,139 @@
     }).join('') : '<div class="empty">ไม่มีรายการเลยกำหนด</div>') + '</div></main>';
     return h;
   }
+  /* ---------- งานวัดผลตรวจสอบ / ผู้ดูแลระบบอนุมัติ ---------- */
   function vApprove() {
-    var list = S.cases.filter(function (c) { return c.status === 'PASSED'; }).sort(function (a, b) { return (a.upd || 0) - (b.upd || 0); });
-    var h = header('อนุมัติผลการแก้', 'ครูผู้สอนให้ผ่านแล้ว รอบันทึกผล', refreshBtn(''));
+    var adm = isAdmin();
+    var passed = S.cases.filter(function (c) { return c.status === 'PASSED'; }).sort(function (a, b) { return (a.upd || 0) - (b.upd || 0); });
+    var verified = S.cases.filter(function (c) { return c.status === 'VERIFIED'; }).sort(function (a, b) { return (a.upd || 0) - (b.upd || 0); });
+    var h = header(adm ? 'อนุมัติผลการแก้' : 'ตรวจสอบก่อนส่งแอดมิน', adm ? 'งานวัดผลตรวจสอบแล้ว รอผู้ดูแลระบบอนุมัติ' : 'ตรวจผลที่ครูผู้สอนให้ผ่าน แล้วส่งต่อผู้ดูแลระบบ', refreshBtn(''));
     h += '<main class="main">' + syncNote();
     if (!S.loaded) return h + loadingHtml() + '</main>';
-    if (!list.length) return h + '<div class="group"><div class="soon">' + emptyIc('seal', 32) + '<b>ไม่มีรายการรออนุมัติ</b><span>เมื่อครูตรวจหลักฐานและให้ผ่านแล้วจะขึ้นที่นี่</span></div></div></main>';
-    h += '<button class="btn btn-primary btn-block" data-act="approve-all" style="margin-bottom:14px">' + ic('seal') + 'อนุมัติทั้งหมด ' + list.length + ' รายการ</button><div class="group">';
-    h += list.map(function (c) { return '<div class="row-split">' + caseRow(c, true) + '<button class="mini" data-act="approve" data-id="' + esc(c.id) + '">' + ic('check', 18) + 'อนุมัติ</button></div>'; }).join('');
-    return h + '</div></main>';
+    var row = function (c, btns) {
+      return '<div class="row-split" data-k="' + esc(c.id) + '">' + caseRow(c, true) + '<div class="ap-btns">' + btns + '</div></div>';
+    };
+    var sendBack = function (c) { return '<button class="mini mini-ghost" data-act="sendback-open" data-id="' + esc(c.id) + '" title="ส่งกลับครูผู้สอน">' + ic('back', 18) + 'ส่งกลับ</button>'; };
+    if (adm) {
+      h += '<div class="flow-strip">' + flowStep('ครูผู้สอนให้ผล', 'done') + flowStep('งานวัดผลตรวจสอบ', 'done') + flowStep('ผู้ดูแลระบบอนุมัติ', 'cur') + '</div>';
+      h += '<div class="sec"><h2>ผ่านการตรวจสอบแล้ว ' + verified.length + '</h2>' + (verified.length ? '<button class="link" data-act="approve-all" data-v="VERIFIED">อนุมัติทั้งหมด</button>' : '') + '</div>';
+      h += '<div class="group">' + (verified.length ? verified.map(function (c) {
+        return row(c, sendBack(c) + '<button class="mini" data-act="approve" data-id="' + esc(c.id) + '">' + ic('seal', 18) + 'อนุมัติ</button>');
+      }).join('') : '<div class="empty">ยังไม่มีรายการที่งานวัดผลส่งมา</div>') + '</div>';
+      if (passed.length) {
+        h += '<div class="sec"><h2>ยังไม่ผ่านงานวัดผล ' + passed.length + '</h2><span class="t-muted" style="font-size:13px">อนุมัติข้ามขั้นได้ถ้าจำเป็น</span></div><div class="group">' + passed.map(function (c) {
+          return row(c, sendBack(c) + '<button class="mini mini-ghost" data-act="verify" data-id="' + esc(c.id) + '">' + ic('check', 18) + 'ตรวจแล้ว</button><button class="mini" data-act="approve" data-id="' + esc(c.id) + '">' + ic('seal', 18) + 'อนุมัติ</button>');
+        }).join('') + '</div>';
+      }
+      if (!verified.length && !passed.length) h += '<div class="group" style="margin-top:12px"><div class="soon">' + emptyIc('seal', 32) + '<b>ไม่มีรายการรออนุมัติ</b><span>เมื่องานวัดผลตรวจสอบและส่งมา จะขึ้นที่นี่</span></div></div>';
+      return h + '</main>';
+    }
+    h += '<div class="flow-strip">' + flowStep('ครูผู้สอนให้ผล', 'done') + flowStep('งานวัดผลตรวจสอบ', 'cur') + flowStep('ผู้ดูแลระบบอนุมัติ', '') + '</div>';
+    if (passed.length) h += '<button class="btn btn-primary btn-block" data-act="verify-all" style="margin-bottom:14px">' + ic('send') + 'ตรวจแล้ว ส่งแอดมินทั้งหมด ' + passed.length + ' รายการ</button>';
+    h += '<div class="sec"><h2>รอตรวจสอบ ' + passed.length + '</h2></div><div class="group">' + (passed.length ? passed.map(function (c) {
+      return row(c, sendBack(c) + '<button class="mini" data-act="verify" data-id="' + esc(c.id) + '">' + ic('check', 18) + 'ตรวจแล้ว</button>');
+    }).join('') : '<div class="soon">' + emptyIc('seal', 32) + '<b>ไม่มีรายการรอตรวจสอบ</b><span>เมื่อครูผู้สอนให้ผ่านแล้วจะขึ้นที่นี่</span></div>') + '</div>';
+    h += '<div class="sec"><h2>ส่งแอดมินแล้ว รออนุมัติ ' + verified.length + '</h2></div><div class="group">' + (verified.length ? verified.map(function (c) { return caseRow(c, true); }).join('') : '<div class="empty">ยังไม่มี</div>') + '</div>';
+    return h + '</main>';
   }
+  function flowStep(t, st) { return '<div class="fs ' + st + '"><i>' + (st === 'done' ? ic('check', 14) : '') + '</i><span>' + t + '</span></div>'; }
+  function shSendBack() {
+    var s = S.sheet, c = caseById(s.cid), q = ['ระดับผลการเรียนเกินเกณฑ์ที่กำหนด', 'หลักฐานไม่ครบ ขอให้ตรวจสอบอีกครั้ง', 'ข้อมูลรายวิชาหรือนักเรียนไม่ถูกต้อง'];
+    return '<h3 class="sh-t">ส่งกลับให้ครูผู้สอนตรวจใหม่</h3><p class="sh-s">' + esc(c ? c.studentName + ' ' + c.subjectName + ' (ครู' + c.teacherName + ')' : '') + '</p>' +
+      '<div class="opts" style="margin-bottom:10px">' + q.map(function (x) { return '<button class="fchip" data-act="quick-note" data-v="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<textarea class="inp" data-k="note" maxlength="300" placeholder="บอกครูผู้สอนว่าต้องแก้ไขอะไร">' + esc(s.note || '') + '</textarea><div id="rejErr" class="err" role="alert"></div>' +
+      '<button class="btn btn-primary btn-block" data-act="sendback-send" data-id="' + esc(s.cid) + '" style="margin-top:8px">' + ic('back', 20) + 'ส่งกลับครูผู้สอน</button>';
+  }
+
+  /* ---------- ครูผู้สอน: บันทึกการติดตาม / แก้ไขรายการ ---------- */
+  function shFollow() {
+    var s = S.sheet, c = caseById(s.cid), q = ['ให้ใบงานซ่อมเสริมแล้ว', 'นัดสอบแก้ตัวแล้ว', 'นักเรียนส่งงานบางส่วนแล้ว', 'ติดต่อผู้ปกครองแล้ว', 'นักเรียนยังไม่มาพบครู'];
+    return '<h3 class="sh-t">บันทึกการติดตาม</h3><p class="sh-s">' + esc(c ? c.studentName + ' ' + c.subjectName : '') + ' บันทึกจะแสดงในประวัติของรายการ</p>' +
+      '<div class="opts" style="margin-bottom:10px">' + q.map(function (x) { return '<button class="fchip" data-act="quick-note" data-v="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' +
+      '<textarea class="inp" data-k="note" maxlength="300" placeholder="เช่น นัดสอบแก้ตัววันศุกร์ คาบ 5">' + esc(s.note || '') + '</textarea>' +
+      '<button class="toggle" data-act="follow-notify" style="margin:10px 0"><span><b>แจ้งนักเรียนด้วย</b><br><small class="t-muted">ส่งข้อความนี้ถึงนักเรียน (และ LINE ผู้ปกครองถ้าเชื่อมไว้)</small></span><span class="sw' + (s.notify ? ' on' : '') + '"></span></button>' +
+      '<div id="rejErr" class="err" role="alert"></div><button class="btn btn-primary btn-block" data-act="follow-save" data-id="' + esc(s.cid) + '">' + ic('check', 20) + 'บันทึก</button>';
+  }
+  function shEdit() {
+    var s = S.sheet, c = caseById(s.cid);
+    if (!c) return '<div class="empty">ไม่พบรายการ</div>';
+    return '<h3 class="sh-t">แก้ไขรายการ</h3><p class="sh-s">' + esc(c.studentName + ' ' + c.subjectName + ' (' + c.type + ')') + '</p>' +
+      '<label class="field"><span class="lbl">สาเหตุ</span><input class="inp" data-ek="cause" maxlength="300" value="' + esc(s.cause) + '"></label>' +
+      (c.type === 'มส' ? '<label class="field"><span class="lbl">เวลาเรียน (%)</span><input class="inp" type="number" min="0" max="100" data-ek="ms" value="' + esc(s.ms) + '"></label>' : '') +
+      '<label class="field"><span class="lbl">สิ่งที่ต้องทำ (บรรทัดละ 1 ข้อ)</span><textarea class="inp" data-ek="tasks" rows="4">' + esc(s.tasks) + '</textarea></label>' +
+      '<label class="field"><span class="lbl">ต้องแก้ให้เสร็จภายใน</span><input class="inp" type="date" data-ek="due" min="' + ymd(now()) + '" value="' + esc(s.due) + '"></label>' +
+      '<div id="rejErr" class="err" role="alert"></div><button class="btn btn-primary btn-block" data-act="edit-save" data-id="' + esc(c.id) + '">' + ic('check', 20) + 'บันทึกการแก้ไข</button>';
+  }
+
+  /* ---------- ครูที่ปรึกษา: ภาพรวมห้องของฉัน + แจ้งเตือนนักเรียน ---------- */
+  function advData() {
+    var cls = S.user.advisorClass, map = {}, rows = [];
+    (S.students || []).forEach(function (x) { if (x.cls === cls) { map[x.id] = { sid: x.id, name: x.name, first: x.firstName, no: x.no, pv: x.pv, cs: [] }; rows.push(map[x.id]); } });
+    S.cases.forEach(function (c) {
+      if (c.classroom !== cls) return;
+      if (!map[c.sid]) { map[c.sid] = { sid: c.sid, name: c.studentName, first: c.firstName, no: c.number, pv: c.pv, cs: [] }; rows.push(map[c.sid]); }
+      map[c.sid].cs.push(c);
+    });
+    rows.forEach(function (r) {
+      r.open = r.cs.filter(isOpen); r.late = r.cs.filter(isOverdue).length;
+      r.t = { '0': 0, 'ร': 0, 'มส': 0 }; r.open.forEach(function (c) { if (r.t[c.type] !== undefined) r.t[c.type]++; });
+      r.hold = r.cs.some(function (c) { return c.status === 'HOLD'; });
+      r.done = r.cs.length && !r.open.length;
+    });
+    rows.sort(function (a, b) { return (+a.no || 0) - (+b.no || 0); });
+    return rows;
+  }
+  function vAdvisor() {
+    var u = S.user, cls = u.advisorClass, rows = advData(), f = S.advF || 'all';
+    var withOpen = rows.filter(function (r) { return r.open.length; });
+    var T = { '0': 0, 'ร': 0, 'มส': 0 }; withOpen.forEach(function (r) { ['0', 'ร', 'มส'].forEach(function (k) { if (r.t[k]) T[k]++; }); });
+    var h = heroHeader('ห้อง ' + esc(cls), 'ภาพรวมนักเรียนห้องที่ปรึกษา ' + term(), S.loaded ? '<div class="hero-row">' + ring(rows.length - withOpen.length, rows.length || 1) + '<div class="hero-msg"><b>' + (withOpen.length ? 'ยังค้าง ' + withOpen.length + ' คน' : 'ไม่มีนักเรียนค้าง') + '</b><span>จากนักเรียน ' + rows.length + ' คน</span></div></div>' : '');
+    h += '<main class="main">' + syncNote();
+    if (!S.loaded || !S.students) return h + loadingHtml() + '</main>';
+    h += '<div class="adv-kpi">' + [['0', 'ติด 0', 'ไม่ผ่านเกณฑ์'], ['ร', 'ติด ร', 'ค้างงาน/ขาดสอบ'], ['มส', 'ติด มส', 'เวลาเรียนไม่ถึง']].map(function (k) {
+      return '<button class="adv-k ' + tcls(k[0]) + '" data-act="adv-f" data-v="' + k[0] + '" aria-pressed="' + (f === k[0]) + '">' + typeStamp(k[0]) + '<b>' + T[k[0]] + ' คน</b><span>' + k[2] + '</span></button>';
+    }).join('') + '</div>';
+    h += '<div class="chips" style="padding-top:4px">' + [['all', 'ทั้งห้อง ' + rows.length], ['open', 'ยังค้าง ' + withOpen.length], ['late', 'เลยกำหนด'], ['done', 'แก้ครบแล้ว'], ['clean', 'ไม่ติดเลย']].map(function (x) {
+      return '<button class="fchip" data-act="adv-f" data-v="' + x[0] + '" aria-pressed="' + (f === x[0]) + '">' + x[1] + '</button>';
+    }).join('') + '</div>';
+    var list = rows.filter(function (r) {
+      if (f === 'open') return r.open.length; if (f === 'late') return r.late; if (f === 'done') return r.done; if (f === 'clean') return !r.cs.length;
+      if (f === '0' || f === 'ร' || f === 'มส') return r.t[f];
+      return true;
+    });
+    var canRemind = list.filter(function (r) { return r.open.length && !r.hold; });
+    if (canRemind.length) h += '<button class="btn btn-ok btn-block adv-all" data-act="adv-remind-all" style="margin:4px 0 14px">' + ic('bell') + 'แจ้งเตือนนักเรียนที่ยังค้าง ' + canRemind.length + ' คน</button>';
+    h += '<div class="group cols adv-list">' + (list.length ? list.map(function (r) {
+      var chips = ['0', 'ร', 'มส'].filter(function (k) { return r.t[k]; }).map(function (k) { return '<span class="adv-t ' + tcls(k) + '">' + k + ' ' + r.t[k] + '</span>'; }).join('');
+      var st = r.hold ? '<span class="chip ch-hold">แขวน</span>' : (!r.cs.length ? '<span class="chip ch-ok">ไม่ติด</span>' : (r.done ? '<span class="chip ch-ok">แก้ครบ</span>' : (r.late ? '<span class="chip ch-bad">เลยกำหนด ' + r.late + '</span>' : '')));
+      var subj = r.open.map(function (c) { return esc(c.subjectName); }).join(', ');
+      return '<div class="row-split" data-k="' + esc(r.sid) + '"><button class="row" data-act="' + (r.cs.length ? 'open-student' : 'noop') + '" data-v="' + esc(r.sid) + '">' + avatarHtml(r.sid, r.first || r.name, r.pv) +
+        '<span class="row-main"><span class="row-t">' + esc(r.no ? r.no + '. ' : '') + esc(r.name) + '</span><span class="row-s adv-chips">' + chips + st + '</span>' + (subj ? '<span class="row-s adv-subj">' + subj + '</span>' : '') + '</span></button>' +
+        (r.open.length && !r.hold ? '<button class="mini mini-bell" data-act="adv-remind" data-v="' + esc(r.sid) + '" aria-label="แจ้งเตือน ' + esc(r.name) + '">' + ic('bell', 18) + '</button>' : '') + '</div>';
+    }).join('') : '<div class="empty">ไม่มีนักเรียนตามตัวกรองนี้</div>') + '</div>';
+    h += '<div class="ev-add" style="margin-top:14px"><button class="btn btn-ghost" data-act="sum-open" data-v="class">' + ic('printer', 20) + 'รายงานสรุปห้อง</button><button class="btn btn-ghost" data-act="adm-open" data-v="students">' + ic('users', 20) + 'จัดการนักเรียนในห้อง</button></div>';
+    return h + '</main>';
+  }
+  var ADV_MSG = ['รีบติดต่อครูผู้สอนเพื่อแก้ให้เสร็จก่อนครบกำหนด', 'ครูที่ปรึกษาเป็นห่วง ขอให้ตั้งใจแก้ 0 ร มส ให้ครบ', 'ใกล้ปิดภาคเรียนแล้ว เร่งแก้ให้เสร็จนะ', 'ผู้ปกครองช่วยติดตามให้นักเรียนแก้ผลการเรียนด้วยครับ/ค่ะ'];
+  function advRemind(sids, label) {
+    var go = function (msg) {
+      if (msg === null) return;
+      loading('กำลังส่งแจ้งเตือน', label);
+      API.call('advisorRemind', { sids: sids, message: msg }).then(function (d) {
+        loaded(); haptic();
+        successBox('ส่งแจ้งเตือนแล้ว ' + d.sent + ' คน', (d.recent ? 'ข้าม ' + d.recent + ' คนที่เพิ่งแจ้งไปไม่ถึง 10 นาที ' : '') + (d.skipped ? 'ข้าม ' + d.skipped + ' คนที่ไม่มีรายการค้าง' : 'นักเรียนเห็นในแอป และผู้ปกครองที่เชื่อม LINE จะได้รับข้อความ'));
+      }).catch(function (e) { loaded(); toast(e.message || 'ส่งไม่สำเร็จ'); });
+    };
+    if (!hasSwal()) { go(window.prompt('ข้อความถึงนักเรียน (เว้นว่างได้)', ADV_MSG[0])); return; }
+    swalFire({
+      title: 'แจ้งเตือน' + label, icon: 'info',
+      html: '<div style="font-size:14px;margin-bottom:8px">ระบบจะแนบรายวิชาที่ยังค้างของแต่ละคนให้อัตโนมัติ</div><div class="opts" style="justify-content:center">' + ADV_MSG.map(function (m) {
+        return '<button type="button" class="fchip" onclick="var t=document.querySelector(\'.swal2-textarea\');t.value=this.textContent;t.focus()">' + esc(m) + '</button>';
+      }).join('') + '</div>',
+      input: 'textarea', inputValue: ADV_MSG[0], inputPlaceholder: 'ข้อความถึงนักเรียน', showCancelButton: true,
+      confirmButtonText: 'ส่งแจ้งเตือน', cancelButtonText: 'ยกเลิก', reverseButtons: true, customClass: { popup: 'sw-pop' }
+    }).then(function (r) { go(r.isConfirmed ? String(r.value || '').trim() : null); });
+  }
+
   function classesOf(cs) {
     var out = [];
     cs.forEach(function (c) { if (c.classroom && out.indexOf(c.classroom) < 0) out.push(c.classroom); });
@@ -918,7 +1032,7 @@
     cs.forEach(function (c) {
       var st = c.status;
       if (st === 'APPROVED') o.done++; else if (st === 'REPEAT') o.repeat++; else if (st === 'HOLD') o.hold++;
-      else if (st === 'SUBMITTED' || st === 'PASSED') o.review++; else o.doing++;
+      else if (st === 'SUBMITTED' || st === 'PASSED' || st === 'VERIFIED') o.review++; else o.doing++;
       if (isOverdue(c)) o.late++;
       if (o.t[c.type]) { o.t[c.type][0]++; if (st === 'APPROVED') o.t[c.type][1]++; }
       by[c.sid] = by[c.sid] || { n: 0, open: 0 }; by[c.sid].n++; if (isOpen(c)) by[c.sid].open++;
@@ -1010,16 +1124,21 @@
     n.push('แก้เสร็จแล้ว ' + o.done + ' จาก ' + o.total + ' รายการ (' + o.pct + '%) นักเรียนแก้ครบทุกวิชาแล้ว ' + o.stuDone + ' จาก ' + o.stu + ' คน');
     return '<div class="sm-note"><b>ข้อสังเกต</b><ul>' + n.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
   }
+  /** ช่องลงนาม: ลายเซ็นวางกึ่งกลางเหนือเส้นประ ปรับตำแหน่ง/ขนาดได้ต่อผู้ลงนาม (sx sy ss) */
+  function sigBox(g) {
+    var dots = '......................................';
+    var pos = g.pos || {}, st = '--sx:' + (+pos.sx || 0) + 'px;--sy:' + (+pos.sy || 0) + 'px;--ss:' + ((+pos.ss || 100) / 100);
+    return '<div class="sig"><div class="sig-ln"><span class="sig-l">ลงชื่อ</span><span class="sig-dots">' + (g.img ? '<img class="sig-img2" src="' + esc(g.img) + '" alt="" style="' + st + '">' : '') + '</span></div>' +
+      '<div class="sig-nm">(' + esc(g.name || dots) + ')</div><div class="role">' + esc(g.role) + '</div></div>';
+  }
   function sumSigns(first) {
     var cfg = reportCfg(), dots = '......................................', sigs = first ? [first] : [];
     cfg.signers.forEach(function (g) {
       if (g.on === false || g.auto) return;
-      sigs.push({ name: g.name || '', role: g.label, img: cfg.printSig !== false && g.id ? (S.sigs || {})[g.id] : '' });
+      sigs.push({ name: g.name || '', role: g.label, img: cfg.printSig !== false && g.id ? (S.sigs || {})[g.id] : '', pos: g });
     });
     var d = new Date();
-    return '<div class="p-sign">' + sigs.map(function (g) {
-      return '<div class="sig">' + (g.img ? '<img class="sig-img" src="' + esc(g.img) + '" alt="">' : '') + 'ลงชื่อ ' + dots + '<br>(' + esc(g.name || dots) + ')<br><span class="role">' + esc(g.role) + '</span></div>';
-    }).join('') + '</div><div class="p-give">วันที่ ' + d.getDate() + ' ' + TH_FULL[d.getMonth()] + ' พ.ศ. ' + (d.getFullYear() + 543) + '</div>';
+    return '<div class="p-sign">' + sigs.map(sigBox).join('') + '</div><div class="p-give">วันที่ ' + d.getDate() + ' ' + TH_FULL[d.getMonth()] + ' พ.ศ. ' + (d.getFullYear() + 543) + '</div>';
   }
   function rosterOf(cls) {
     if (!S.students) return 0;
@@ -1130,6 +1249,7 @@
     h += '<div class="sec"><h2>บัญชีและการตั้งค่า</h2></div><div class="group">';
     h += '<button class="row" data-act="pw-open"><span class="nf-ic">' + ic('lock', 20) + '</span><span class="row-main"><span class="row-t">เปลี่ยนรหัสผ่าน</span><span class="row-s">แนะนำให้เปลี่ยนทุกภาคเรียน</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     h += '<button class="row" data-act="line-open"><span class="nf-ic ok">' + ic('chat', 20) + '</span><span class="row-main"><span class="row-t">' + (u.role === 'student' ? 'LINE ผู้ปกครอง' : 'LINE ส่วนตัว') + '</span><span class="row-s">' + (u.lineLinked ? 'รับแจ้งเตือนผ่าน LINE OA โรงเรียน' : (u.role === 'student' ? 'ให้ผู้ปกครองสแกน QR เพื่อรับแจ้งเตือน' : 'รับแจ้งเตือนงานทาง LINE')) + '</span></span>' + (u.lineLinked ? '<span class="chip ch-ok">เชื่อมแล้ว</span>' : '<span class="chip">ยังไม่เชื่อม</span>') + '</button>';
+    if (u.role !== 'student') h += '<button class="row" data-act="mysig-open"><span class="nf-ic">' + ic('send', 20) + '</span><span class="row-main"><span class="row-t">ลายเซ็นของฉัน</span><span class="row-s">เซ็นบนจอหรือถ่ายรูป ใช้ลงนามตอนให้ผลและพิมพ์ในรายงาน</span></span>' + ((S.sigs || {})['u_' + u.id] ? '<span class="chip ch-ok">มีแล้ว</span>' : '<span class="chev">' + ic('chev', 20) + '</span>') + '</button>';
     h += '<button class="row" data-act="theme-open"><span class="nf-ic">' + ic('moon', 20) + '</span><span class="row-main"><span class="row-t">สีธีมและเอฟเฟค</span><span class="row-s">เปลี่ยนสี โหมดมืด เอฟเฟคแสง</span></span><span class="theme-swatch-dot"></span></button>';
     h += '<button class="row" data-act="howto"><span class="nf-ic">' + ic('phone', 20) + '</span><span class="row-main"><span class="row-t">' + (S.installEvt ? 'ติดตั้งเป็นแอปบนเครื่องนี้' : 'เพิ่มไว้ที่หน้าจอโทรศัพท์') + '</span><span class="row-s">เปิดได้เหมือนแอป ไม่ต้องพิมพ์ลิงก์ เปิดได้แม้เน็ตหลุด</span></span>' + (S.installEvt ? '<span class="chip ch-info">ติดตั้ง</span>' : '<span class="chev">' + ic('chev', 20) + '</span>') + '</button>';
     h += '</div>' + manageSection() + '<button class="btn btn-bad btn-block" data-act="logout" style="margin-top:20px">' + ic('logout', 20) + 'ออกจากระบบ</button>';
@@ -1139,13 +1259,15 @@
 
   function tabsFor(role) {
     if (role === 'student') return [['home', 'หน้าหลัก', 'home'], ['notif', 'แจ้งเตือน', 'bell'], ['me', 'ฉัน', 'user']];
-    if (role === 'teacher') return [['home', 'งานของฉัน', 'home'], ['students', 'นักเรียน', 'users'], ['notif', 'แจ้งเตือน', 'bell'], ['me', 'ฉัน', 'user']];
+    if (role === 'teacher') return S.user && S.user.advisorClass
+      ? [['home', 'งานของฉัน', 'home'], ['adv', 'ห้องของฉัน', 'cap'], ['students', 'นักเรียน', 'users'], ['notif', 'แจ้งเตือน', 'bell'], ['me', 'ฉัน', 'user']]
+      : [['home', 'งานของฉัน', 'home'], ['students', 'นักเรียน', 'users'], ['notif', 'แจ้งเตือน', 'bell'], ['me', 'ฉัน', 'user']];
     if (role === 'admin') return [['home', 'ภาพรวม', 'chart'], ['students', 'ติดตาม', 'users'], ['approve', 'อนุมัติ', 'seal'], ['report', 'รายงาน', 'printer'], ['manage', 'จัดการ', 'settings'], ['me', 'ฉัน', 'user']];
-    return [['home', 'ภาพรวม', 'chart'], ['students', 'นักเรียน', 'users'], ['approve', 'อนุมัติ', 'seal'], ['report', 'รายงาน', 'printer'], ['me', 'ฉัน', 'user']];
+    return [['home', 'ภาพรวม', 'chart'], ['students', 'นักเรียน', 'users'], ['approve', 'ตรวจสอบ', 'seal'], ['report', 'รายงาน', 'printer'], ['me', 'ฉัน', 'user']];
   }
   function navHtml() {
     var un = unread();
-    var pend = S.cases.filter(function (c) { return c.status === 'PASSED'; }).length;
+    var pend = S.cases.filter(function (c) { return c.status === (isAdmin() ? 'VERIFIED' : 'PASSED'); }).length;
     var src = logoSrc();
     return '<nav class="nav no-print" aria-label="เมนูหลัก"><div class="nav-brand">' + (src ? '<img src="' + esc(src) + '" alt="">' : '<span class="nb-ic">' + ic('cap', 22) + '</span>') +
       '<span><b>' + esc(C.APP_NAME || 'ติดตามการแก้ 0 ร มส') + '</b><small>' + esc(setting('schoolName', C.SCHOOL || '')) + '</small></span></div><div class="nav-in">' + tabsFor(S.user.role).map(function (t) {
@@ -1190,7 +1312,7 @@
     if (t === 'notif') h = vNotif();
     else if (t === 'me') h = vMe();
     else if (role === 'student') h = vStudentHome();
-    else if (role === 'teacher') h = t === 'students' ? vTeacherStudents() : vTeacherHome();
+    else if (role === 'teacher') { if (t === 'adv') { loadStudents(); h = vAdvisor(); } else h = t === 'students' ? vTeacherStudents() : vTeacherHome(); }
     else if (t === 'manage') h = vManage();
     else h = t === 'students' ? vTeacherStudents() : (t === 'approve' ? vApprove() : (t === 'report' ? vReportTab() : vMeasureHome()));
     return h + navHtml();
@@ -1248,6 +1370,10 @@
     else if (k === 'sig') inner = shSig();
     else if (k === 'setup-real') inner = shSetupReal();
     else if (k === 'reject') inner = shReject();
+    else if (k === 'sendback') inner = shSendBack();
+    else if (k === 'sigpos') inner = shSigPos();
+    else if (k === 'follow') inner = shFollow();
+    else if (k === 'edit') inner = shEdit();
     else if (k === 'img') inner = shImg();
     else if (k === 'done') inner = '<div class="done-ic">' + ic(S.sheet.icon || 'check', 44) + '</div><h3 class="done-t">' + esc(S.sheet.title) + '</h3><p class="done-s">' + esc(S.sheet.sub) + '</p>' + (S.sheet.next ? '<ol class="next">' + S.sheet.next.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : '') +
       '<div class="actbar-in">' + (S.sheet.home ? '<button class="btn btn-primary" data-act="done-home">กลับหน้าแรก</button>' : '') + (S.sheet.again ? '<button class="btn btn-ghost" data-act="new-case">บันทึกคนต่อไป</button>' : '') + (S.sheet.home ? '' : '<button class="btn btn-primary" data-act="close-sheet">' + esc(S.sheet.btn || 'ตกลง') + '</button>') + '</div>';
@@ -1256,6 +1382,7 @@
     document.body.style.overflow = 'hidden';
     if (k === 'line' && S.sheet.code) drawQR();
     if (k === 'sig' && S.sheet.mode === 'draw') initSigPad();
+    if (k === 'sigpos') initSigPos();
   }
 
   function gradeOptions(cap) {
@@ -1270,7 +1397,9 @@
     if (c.type === 'ร') failText = 'ผลจริงได้ 0 ระบบจะเปลี่ยนเป็นการแก้ 0 ครั้งที่ 1';
     else if (c.attempt >= maxA) failText = 'แก้ครบ ' + maxA + ' ครั้งแล้ว ระบบจะบันทึกเป็น ต้องเรียนซ้ำ';
     else failText = 'ให้นักเรียนแก้ครั้งที่ ' + (c.attempt + 1) + ' กำหนดใหม่อีก ' + setting('defaultDays', 14) + ' วัน';
-    return '<h3 class="sh-t">ให้ผลการแก้</h3><p class="sh-s">' + esc(c.studentName) + ' ' + esc(c.subjectName) + ' (' + esc(c.type) + ')</p>' +
+    var mySig = (S.sigs || {})['u_' + S.user.id];
+    return '<h3 class="sh-t">ให้ผลการแก้และลงนาม</h3><p class="sh-s">' + esc(c.studentName) + ' ' + esc(c.subjectName) + ' (' + esc(c.type) + ')</p>' +
+      '<div class="g-sign">' + (mySig ? '<img src="' + esc(mySig) + '" alt="ลายเซ็น">' : '<span class="t-muted">ยังไม่มีลายเซ็นดิจิทัล</span>') + '<span>ลงนามโดย ' + esc(S.user.displayName) + '<br><small>' + (mySig ? 'ลายเซ็นนี้จะพิมพ์ในรายงานช่องครูผู้สอน' : 'เพิ่มลายเซ็นได้ที่เมนู ฉัน → ลายเซ็นของฉัน') + '</small></span></div>' +
       '<span class="lbl">ผ่าน ได้ระดับผลการเรียน</span><div class="grades" style="grid-template-columns:repeat(' + Math.min(4, g.length) + ',1fr)">' + g.map(function (x) {
         return '<button data-act="grade-pass" data-id="' + esc(c.id) + '" data-v="' + x + '">' + x + '</button>';
       }).join('') + '</div>' + (cap < 4 ? '<p class="sh-s" style="margin-top:8px">ผล ' + esc(c.type) + ' เมื่อแก้แล้วได้ไม่เกิน ' + cap + ' ตามระเบียบวัดผล</p>' : '') +
@@ -1555,7 +1684,7 @@
       if (S.sheet && S.sheet.kind === 'new' && !S.sheet.sid) { var sc = $('scls'); if (sc) sc.innerHTML = stuChips(); flipRender($('sres'), stuResults(S.sheet.sq)); }
       else if (S.sheet && S.sheet.kind === 'new') renderSheet();
       if (S.pop === 'search' && $('gsres')) $('gsres').innerHTML = gsResults(S.gsq || '');
-      var tv = S.stack[S.stack.length - 1]; if (tv && tv.v === 'sum') renderMain();
+      var tv = S.stack[S.stack.length - 1]; if ((tv && tv.v === 'sum') || (!tv && S.tab === 'adv')) renderMain();
     }).catch(function (e) { toast(e.message || 'โหลดรายชื่อนักเรียนไม่สำเร็จ'); });
   }
 
@@ -1581,7 +1710,7 @@
   }
   function paperHtml(sid, cs) {
     var cfg = reportCfg(), s = cs[0] || {}, done = cs.filter(function (c) { return c.status === 'APPROVED'; }).length;
-    var st = { OPEN: 'รอรับทราบ', DOING: 'กำลังแก้', SUBMITTED: 'รอครูตรวจ', PASSED: 'รออนุมัติ', APPROVED: 'แก้เสร็จ', REPEAT: 'เรียนซ้ำ', HOLD: 'แขวนการติดตาม' };
+    var st = { OPEN: 'รอครูติดตาม', DOING: 'ครูกำลังติดตาม', SUBMITTED: 'ครูกำลังตรวจ', PASSED: 'รองานวัดผลตรวจ', VERIFIED: 'รออนุมัติ', APPROVED: 'แก้เสร็จ', REPEAT: 'เรียนซ้ำ', HOLD: 'แขวนการติดตาม' };
     var dots = '......................................';
     var src = logoSrc(), d = new Date();
     var h = '<div class="paper"><div class="p-head">' + (src ? '<img class="p-logo" src="' + esc(src) + '" alt="">' : emblem()) +
@@ -1601,16 +1730,23 @@
       if (g.on === false) return;
       if (g.auto === 'teacher') {
         var seen = {};
-        cs.forEach(function (c) { if (c.teacherName && !seen[c.teacherName]) { seen[c.teacherName] = 1; sigs.push({ name: c.teacherName, role: g.label + ' ' + c.subjectName }); } });
+        cs.forEach(function (c) {
+          if (c.teacherName && !seen[c.teacherName]) {
+            seen[c.teacherName] = 1;
+            // ครูผู้สอนที่ให้ผลแล้ว ใช้ลายเซ็นดิจิทัลของครูคนนั้น (ถ้ามี)
+            var signed = c.status === 'PASSED' || c.status === 'VERIFIED' || c.status === 'APPROVED';
+            sigs.push({ name: c.teacherName, role: g.label + ' ' + c.subjectName, img: signed && cfg.printSig !== false ? (S.sigs || {})['u_' + c.teacher] : '', pos: g });
+          }
+        });
         if (!cs.length) sigs.push({ name: '', role: g.label });
         return;
       }
       var name = g.auto === 'student' ? s.studentName : (g.auto === 'parent' ? s.parentName : (g.auto === 'advisor' ? s.advisorName : g.name));
-      sigs.push({ name: name || '', role: g.label, img: !g.auto && cfg.printSig !== false && g.id ? (S.sigs || {})[g.id] : '' });
+      var img = !g.auto && cfg.printSig !== false && g.id ? (S.sigs || {})[g.id] : '';
+      if (g.auto === 'advisor' && cfg.printSig !== false && s.advisorId) img = (S.sigs || {})['u_' + s.advisorId] || '';
+      sigs.push({ name: name || '', role: g.label, img: img, pos: g });
     });
-    h += '<div class="p-sign">' + sigs.map(function (g) {
-      return '<div class="sig">' + (g.img ? '<img class="sig-img" src="' + esc(g.img) + '" alt="">' : '') + 'ลงชื่อ ' + dots + '<br>(' + esc(g.name || dots) + ')<br><span class="role">' + esc(g.role) + '</span></div>';
-    }).join('') + '</div>';
+    h += '<div class="p-sign">' + sigs.map(sigBox).join('') + '</div>';
     h += '<div class="p-give">วันที่ ' + d.getDate() + ' ' + TH_FULL[d.getMonth()] + ' พ.ศ. ' + (d.getFullYear() + 543) + '</div></div>';
     return h;
   }
@@ -1637,6 +1773,7 @@
         '<div class="sg-main"><input class="inp" data-ri="' + i + '" data-rf="label" value="' + esc(g.label) + '" placeholder="ตำแหน่ง เช่น ผู้อำนวยการ">' +
         (g.auto ? '<div class="sg-auto">' + AUTO_LABEL[g.auto] + '</div>' : '<input class="inp" data-ri="' + i + '" data-rf="name" value="' + esc(g.name || '') + '" placeholder="ชื่อ-สกุล (เว้นว่างให้เขียนด้วยมือ)">' +
           (g.id ? '<button type="button" class="sig-btn" data-act="sig-open" data-i="' + i + '">' + ((S.sigs || {})[g.id] ? '<img src="' + esc(S.sigs[g.id]) + '" alt=""><span>แก้ลายเซ็น</span>' : ic('send', 16) + '<span>เพิ่มลายเซ็นดิจิทัล</span>') + '</button>' : '')) + '</div>' +
+        ((g.id && !g.auto) || g.auto === 'teacher' || g.auto === 'advisor' ? '<button type="button" class="sig-posb" data-act="sigpos-open" data-i="' + i + '">' + ic('settings', 14) + 'ตำแหน่งลายเซ็น' + (g.sx || g.sy || (g.ss && g.ss !== 100) ? ' (ปรับแล้ว)' : '') + '</button>' : '') +
         '<div class="sg-tools"><button data-act="rc-up" data-i="' + i + '" aria-label="เลื่อนขึ้น">▲</button><button data-act="rc-down" data-i="' + i + '" aria-label="เลื่อนลง">▼</button>' +
         (g.auto ? '' : '<button data-act="rc-del" data-i="' + i + '" aria-label="ลบ" style="color:var(--zero)">✕</button>') + '</div></div>';
     });
@@ -1773,7 +1910,7 @@
   }
 
   /* ---------- ส่งออก Excel ---------- */
-  var ST_TH = { OPEN: 'รอรับทราบ', DOING: 'กำลังแก้', SUBMITTED: 'รอครูตรวจ', PASSED: 'รออนุมัติ', APPROVED: 'แก้เสร็จ', REPEAT: 'เรียนซ้ำ', HOLD: 'แขวนการติดตาม' };
+  var ST_TH = { OPEN: 'รอครูติดตาม', DOING: 'ครูกำลังติดตาม', SUBMITTED: 'ครูกำลังตรวจ', PASSED: 'รองานวัดผลตรวจ', VERIFIED: 'รออนุมัติ', APPROVED: 'แก้เสร็จ', REPEAT: 'เรียนซ้ำ', HOLD: 'แขวนการติดตาม' };
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
       var sc = document.createElement('script');
@@ -1871,7 +2008,7 @@
   }
   function shSig() {
     var s = S.sheet, cur = s.data !== undefined ? s.data : (S.sigs || {})[s.id];
-    return '<h3 class="sh-t">ลายเซ็น ' + esc(s.label) + '</h3><p class="sh-s">' + esc(s.name || 'ไม่ได้ระบุชื่อ') + ' ใช้พิมพ์ลงรายงานทุกฉบับ</p>' +
+    return '<h3 class="sh-t">ลายเซ็น ' + esc(s.label) + '</h3><p class="sh-s">' + esc(s.name || 'ไม่ได้ระบุชื่อ') + (s.self ? ' ใช้ลงนามตอนให้ผล และพิมพ์ในรายงานช่องครูผู้สอน/ครูที่ปรึกษา' : ' ใช้พิมพ์ลงรายงานทุกฉบับ') + '</p>' +
       (s.mode === 'draw'
         ? '<div class="sig-pad-wrap"><canvas id="sigPad" class="sig-pad"></canvas><span class="sig-line">ลงชื่อบนเส้นนี้</span></div>' +
           '<div class="actbar-in" style="margin:10px 0 14px"><button class="btn btn-ghost" data-act="sig-clear">ล้าง</button><button class="btn btn-primary" data-act="sig-use">ใช้ลายเซ็นนี้</button></div>'
@@ -1879,7 +2016,49 @@
           '<div class="ev-add" style="margin-top:0"><button class="btn btn-ghost" data-act="sig-draw">' + ic('send', 20) + 'เซ็นบนจอ</button><button class="btn btn-ghost" data-act="sig-upload">' + ic('camera', 20) + 'ถ่าย/อัปโหลดรูป</button></div>' +
           '<p class="hint" style="margin:8px 2px 12px">ถ่ายรูปลายเซ็นบนกระดาษขาว ระบบจะลบพื้นหลังให้อัตโนมัติ</p>' +
           '<div class="actbar-in"><button class="btn btn-bad" data-act="sig-remove"' + (cur ? '' : ' disabled') + '>ลบลายเซ็น</button><button class="btn btn-primary" data-act="sig-save"' + (s.data === undefined ? ' disabled' : '') + '>บันทึก</button></div>' +
-          '<button class="btn btn-ghost btn-block" data-act="sig-back" style="margin-top:10px">กลับไปรูปแบบรายงาน</button>');
+          '<button class="btn btn-ghost btn-block" data-act="sig-back" style="margin-top:10px">' + (S.sheet.self ? 'ปิด' : 'กลับไปรูปแบบรายงาน') + '</button>');
+  }
+  function shSigPos() {
+    var s = S.sheet, cfg = S.sigReturn, g = cfg.signers[s.i];
+    var img = g.auto === 'teacher' || g.auto === 'advisor' ? (S.sigs || {})['u_' + S.user.id] : (S.sigs || {})[g.id];
+    var sx = +g.sx || 0, sy = +g.sy || 0, ss = +g.ss || 100;
+    var rng = function (k, label, min, max, v, unit) {
+      return '<label class="sp-r"><span>' + label + '<b id="spv_' + k + '">' + v + unit + '</b></span><input type="range" data-sp="' + k + '" min="' + min + '" max="' + max + '" value="' + v + '"></label>';
+    };
+    return '<h3 class="sh-t">ตำแหน่งลายเซ็น: ' + esc(g.label) + '</h3><p class="sh-s">ลากลายเซ็นไปวางตรงไหนก็ได้ หรือใช้แถบเลื่อน ค่าเริ่มต้นคือกึ่งกลางเหนือเส้นประ</p>' +
+      '<div class="sp-paper"><div class="p-sign" style="margin:0;grid-template-columns:1fr"><div class="sig"><div class="sig-ln"><span class="sig-l">ลงชื่อ</span><span class="sig-dots">' +
+      (img ? '<img class="sig-img2 sp-drag" id="sigPosImg" src="' + esc(img) + '" alt="" style="--sx:' + sx + 'px;--sy:' + sy + 'px;--ss:' + (ss / 100) + '">' : '<span class="sp-ph" id="sigPosImg" style="--sx:' + sx + 'px;--sy:' + sy + 'px;--ss:' + (ss / 100) + '">ลายเซ็น</span>') +
+      '</span></div><div class="sig-nm">(' + esc(g.name || (g.auto ? AUTO_LABEL[g.auto] : '......................')) + ')</div><div class="role">' + esc(g.label) + '</div></div></div></div>' +
+      (img ? '' : '<p class="hint" style="margin:6px 2px">' + (g.auto ? 'ยังไม่มีลายเซ็นของคุณ ใช้กล่องตัวอย่างแทน (ครูแต่ละคนเพิ่มลายเซ็นได้ที่เมนู ฉัน)' : 'ยังไม่มีลายเซ็นของผู้ลงนามนี้ ใช้กล่องตัวอย่างแทน') + '</p>') +
+      rng('sx', 'เลื่อนซ้าย-ขวา ', -80, 80, sx, ' px') + rng('sy', 'เลื่อนขึ้น-ลง ', -40, 40, sy, ' px') + rng('ss', 'ขนาด ', 50, 180, ss, '%') +
+      '<div class="actbar-in" style="margin-top:10px"><button class="btn btn-ghost" data-act="sigpos-reset">กึ่งกลาง (ค่าเริ่มต้น)</button><button class="btn btn-primary" data-act="sigpos-done">เสร็จ</button></div>' +
+      '<p class="hint" style="margin-top:8px">กด บันทึก ในหน้ารูปแบบรายงานอีกครั้งเพื่อใช้กับรายงานทุกฉบับ</p>';
+  }
+  function spApply() {
+    var s = S.sheet, g = S.sigReturn.signers[s.i], im = $('sigPosImg');
+    if (im) { im.style.setProperty('--sx', (+g.sx || 0) + 'px'); im.style.setProperty('--sy', (+g.sy || 0) + 'px'); im.style.setProperty('--ss', ((+g.ss || 100) / 100)); }
+    ['sx', 'sy', 'ss'].forEach(function (k) {
+      var v = k === 'ss' ? (+g.ss || 100) : (+g[k] || 0), lb = $('spv_' + k), r = document.querySelector('[data-sp="' + k + '"]');
+      if (lb) lb.textContent = v + (k === 'ss' ? '%' : ' px'); if (r && +r.value !== v) r.value = v;
+    });
+  }
+  function initSigPos() {
+    var im = $('sigPosImg'); if (!im) return;
+    var drag = null;
+    im.addEventListener('pointerdown', function (e) {
+      var g = S.sigReturn.signers[S.sheet.i];
+      drag = { x: e.clientX, y: e.clientY, sx: +g.sx || 0, sy: +g.sy || 0 };
+      im.setPointerCapture && im.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    im.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      var g = S.sigReturn.signers[S.sheet.i];
+      g.sx = Math.max(-80, Math.min(80, Math.round(drag.sx + e.clientX - drag.x)));
+      g.sy = Math.max(-40, Math.min(40, Math.round(drag.sy + e.clientY - drag.y)));
+      spApply();
+    });
+    var end = function () { drag = null; };
+    im.addEventListener('pointerup', end); im.addEventListener('pointercancel', end);
   }
   function initSigPad() {
     var cv = $('sigPad'); if (!cv) return;
@@ -3154,6 +3333,7 @@
       case 'open-case': push({ v: 'case', id: id }); break;
       case 'open-student': push({ v: 'student', sid: v }); break;
       case 'open-report': loadSigs(); push({ v: 'report', sid: v }); break;
+      case 'grade-open-sig': loadSigs(); break;
       case 'goto-filter': S.tab = 'students'; S.filter = v; S.q = ''; window.scrollTo(0, 0); render(); break;
       case 'filter': S.filter = v; render(); break;
       case 'cls': S.cls = v; render(); break;
@@ -3188,14 +3368,14 @@
         optimistic('ackCase', { id: id }, function () { var sn = snapCase(id); c.status = 'DOING'; return sn; }, restoreCase, 'รับทราบแล้ว ทำตามรายการได้เลย').catch(function () {});
         break;
       case 'task':
-        if (!c || (c.status !== 'DOING' && c.status !== 'OPEN')) return;
+        if (!c || !isOwner(c) || (c.status !== 'DOING' && c.status !== 'OPEN' && c.status !== 'SUBMITTED')) return;
         var i = +el.getAttribute('data-i'), val = !c.tasks[i].done;
         c.tasks[i].done = val;
         if (c.status === 'OPEN') c.status = 'DOING';
         haptic(); render();
         API.call('toggleTask', { id: id, index: i, done: val }).then(function (d) {
           upsertCase(d.item); saveCache();
-          if (allDone(d.item)) toast('ครบทุกข้อแล้ว');
+          if (allDone(d.item)) toast('ครบทุกข้อแล้ว กด ให้ผลและลงนาม ได้เลย');
         }).catch(function (err) {
           var cc = caseById(id); if (cc) cc.tasks[i].done = !val;
           render(); toast(err.message || 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง');
@@ -3375,7 +3555,7 @@
       case 'astat': S.astat = v; render(); break;
       case 'stu-status': setStudentStatus(id, v); break;
       case 'stu-delete': deleteStudent(id); break;
-      case 'sum-open': push({ v: 'sum', scope: v }); if (S.user.role !== 'student') loadStudents(); break;
+      case 'sum-open': loadSigs(); push({ v: 'sum', scope: v }); if (S.user.role !== 'student') loadStudents(); break;
       case 'sum-cls': var tp = S.stack[S.stack.length - 1]; if (tp && tp.v === 'sum') { tp.cls = v; render(); } break;
       case 'asel-on': S.asel = {}; render(); break;
       case 'asel-off': S.asel = null; render(); break;
@@ -3416,7 +3596,11 @@
         S.sigReturn = s.cfg;
         openSheet({ kind: 'sig', id: sgi.id, label: sgi.label, name: sgi.name || '' });
         break;
-      case 'sig-back': openSheet({ kind: 'report-config', cfg: S.sigReturn || reportCfg() }); break;
+      case 'sig-back': if (s.self) closeSheet(); else openSheet({ kind: 'report-config', cfg: S.sigReturn || reportCfg() }); break;
+      case 'sigpos-open': S.sigReturn = s.cfg; loadSigs(); openSheet({ kind: 'sigpos', i: +el.getAttribute('data-i') }); break;
+      case 'sigpos-reset': var gr = S.sigReturn.signers[s.i]; gr.sx = 0; gr.sy = 0; gr.ss = 100; spApply(); break;
+      case 'sigpos-done': openSheet({ kind: 'report-config', cfg: S.sigReturn }); break;
+      case 'mysig-open': loadSigs(); openSheet({ kind: 'sig', id: 'u_' + S.user.id, label: 'ของฉัน', name: S.user.displayName, self: true }); break;
       case 'sig-draw': s.mode = 'draw'; s.drawn = false; renderSheet(); break;
       case 'sig-clear': renderSheet(); s.drawn = false; break;
       case 'sig-use':
@@ -3435,7 +3619,7 @@
           S.sigVer = d.ver; S.settings = S.settings || {}; S.settings.sigVer = d.ver;
           try { localStorage.setItem(SIG_KEY, JSON.stringify({ sigs: S.sigs, ver: S.sigVer })); } catch (err) {}
           successBox(s.data ? 'บันทึกลายเซ็นแล้ว' : 'ลบลายเซ็นแล้ว');
-          openSheet({ kind: 'report-config', cfg: S.sigReturn || reportCfg() });
+          if (s.self) closeSheet(); else openSheet({ kind: 'report-config', cfg: S.sigReturn || reportCfg() });
         }).catch(function (err) { loaded(); toast(err.message || 'บันทึกไม่สำเร็จ'); });
         break;
       case 'rc-printsig': s.cfg.printSig = s.cfg.printSig === false; renderSheet(); break;
@@ -3632,9 +3816,9 @@
         });
         break;
       case 'done-home': closeSheet(); resetNav(); S.tab = 'home'; window.scrollTo(0, 0); render(); break;
-      case 'grade-open': openSheet({ kind: 'grade', cid: id }); break;
+      case 'grade-open': loadSigs(); openSheet({ kind: 'grade', cid: id }); break;
       case 'grade-pass':
-        mutate('gradeCase', { id: id, result: 'pass', grade: +v }, el, '', function () { closeSheet(); toast('บันทึกผลแล้ว ส่งต่องานวัดผลอนุมัติ'); });
+        mutate('gradeCase', { id: id, result: 'pass', grade: +v }, el, '', function () { closeSheet(); confetti(1400); toast('บันทึกผลและลงนามแล้ว ส่งต่องานวัดผลตรวจสอบ'); });
         break;
       case 'grade-fail':
         var gfBtn = el;
@@ -3647,6 +3831,57 @@
         });
         break;
       case 'reject-open': openSheet({ kind: 'reject', cid: id, note: '' }); break;
+      case 'sendback-open': openSheet({ kind: 'sendback', cid: id, note: '' }); break;
+      case 'sendback-send':
+        if (!s.note || !s.note.trim()) { var sbe = $('rejErr'); if (sbe) sbe.textContent = 'ระบุสิ่งที่ต้องแก้ไขก่อน'; return; }
+        mutate('sendBackCases', { ids: [id], note: s.note.trim() }, el, 'กำลังส่งกลับ', function () { closeSheet(); toast('ส่งกลับครูผู้สอนแล้ว'); });
+        break;
+      case 'verify':
+        if (!c) return;
+        optimistic('verifyCases', { ids: [id] }, function () { var sn = snapCase(id); c.status = 'VERIFIED'; c.upd = now(); return sn; }, restoreCase, 'ตรวจแล้ว ส่งผู้ดูแลระบบอนุมัติ').catch(function () {});
+        break;
+      case 'verify-all':
+        var vids = S.cases.filter(function (x) { return x.status === 'PASSED'; }).map(function (x) { return x.id; });
+        if (!vids.length) return;
+        askReason({ title: 'ส่งแอดมิน ' + vids.length + ' รายการ?', text: 'ตรวจสอบข้อมูลครบแล้ว ส่งให้ผู้ดูแลระบบอนุมัติ (ใส่หมายเหตุได้ ไม่บังคับ)', ok: 'ส่งแอดมิน', icon: 'question', quick: ['ตรวจสอบครบถูกต้อง', 'ตรวจแล้ว มีหลักฐานครบ'] }).then(function (note) {
+          if (note === null) return;
+          optimistic('verifyCases', { ids: vids, note: note }, function () {
+            var sn = vids.map(snapCase);
+            vids.forEach(function (x) { var cc = caseById(x); if (cc) { cc.status = 'VERIFIED'; cc.upd = now(); } });
+            return sn;
+          }, function (sn) { sn.forEach(restoreCase); }).catch(function () {});
+          openSheet({ kind: 'done', icon: 'send', title: 'ส่งผู้ดูแลระบบแล้ว ' + vids.length + ' รายการ', sub: 'ผู้ดูแลระบบจะได้รับแจ้งเตือนให้อนุมัติ' });
+        });
+        break;
+      case 'follow-open': openSheet({ kind: 'follow', cid: id, note: '', notify: false }); break;
+      case 'follow-notify': s.notify = !s.notify; renderSheet(); break;
+      case 'follow-save':
+        if (!s.note || !s.note.trim()) { var fe2 = $('rejErr'); if (fe2) fe2.textContent = 'พิมพ์หรือเลือกบันทึกก่อน'; return; }
+        mutate('followCase', { id: id, note: s.note.trim(), notify: !!s.notify }, el, 'กำลังบันทึก', function () { closeSheet(); toast(s.notify ? 'บันทึกและแจ้งนักเรียนแล้ว' : 'บันทึกการติดตามแล้ว'); });
+        break;
+      case 'edit-open':
+        if (!c) return;
+        openSheet({ kind: 'edit', cid: id, cause: c.cause || '', ms: c.ms === null ? '' : c.ms, tasks: c.tasks.map(function (x) { return x.t; }).join('\n'), due: c.due ? ymd(c.due) : '' });
+        break;
+      case 'edit-save':
+        var ep = { id: id, cause: s.cause, tasks: String(s.tasks || '').split('\n'), due: s.due ? parseYmd(s.due) : '' };
+        if (c && c.type === 'มส' && s.ms !== '') ep.ms = s.ms;
+        mutate('editCase', ep, el, 'กำลังบันทึก', function () { closeSheet(); toast('แก้ไขรายการแล้ว'); });
+        break;
+      case 'adv-f': S.advF = S.advF === v ? 'all' : v; render(); break;
+      case 'adv-remind':
+        var ar = advData().filter(function (r) { return r.sid === v; })[0];
+        advRemind([v], ar ? ' ' + ar.name : '');
+        break;
+      case 'adv-remind-all':
+        var f0 = S.advF || 'all';
+        var al = advData().filter(function (r) {
+          if (!r.open.length || r.hold) return false;
+          if (f0 === 'late') return r.late; if (f0 === '0' || f0 === 'ร' || f0 === 'มส') return r.t[f0];
+          return true;
+        }).map(function (r) { return r.sid; });
+        advRemind(al, 'นักเรียน ' + al.length + ' คน');
+        break;
       case 'quick-note': s.note = v; renderSheet(); break;
       case 'reject-send':
         if (!s.note || !s.note.trim()) { var re = $('rejErr'); if (re) re.textContent = 'พิมพ์หรือเลือกข้อความบอกนักเรียนก่อน'; return; }
@@ -3658,7 +3893,7 @@
         confetti(1800); toast('อนุมัติแล้ว');
         break;
       case 'approve-all':
-        var ids = S.cases.filter(function (x) { return x.status === 'PASSED'; }).map(function (x) { return x.id; });
+        var ids = S.cases.filter(function (x) { return x.status === (v === 'VERIFIED' ? 'VERIFIED' : 'PASSED'); }).map(function (x) { return x.id; });
         if (!ids.length) return;
         if (!el.getAttribute('data-ok')) {
           var apBtn = el;
@@ -3686,6 +3921,8 @@
       if (pit) { pit.to = t.value; pit.manual = true; phRematch(); renderSheet(); }
       return;
     }
+    if (t.getAttribute && t.getAttribute('data-sp') && S.sheet && S.sheet.kind === 'sigpos') { S.sigReturn.signers[S.sheet.i][t.getAttribute('data-sp')] = +t.value; spApply(); return; }
+    if (t.getAttribute && t.getAttribute('data-ek') && S.sheet && S.sheet.kind === 'edit') { S.sheet[t.getAttribute('data-ek')] = t.value; return; }
     if (t.getAttribute && t.getAttribute('data-dp') && S.sheet && S.sheet.kind === 'defpw') { S.sheet.form[t.getAttribute('data-dp')] = t.value; return; }
     if (t.id === 'gsq') { S.gsq = t.value; flipRender($('gsres'), gsResults(t.value)); return; }
     if (t.id === 'q') { S.q = t.value; flipRender($('slist'), studentListHtml()); return; }
