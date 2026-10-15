@@ -4,7 +4,7 @@
  * - ไม่แตะคำขอไปยัง Google Apps Script (ข้อมูลจริงยังมาจากเซิร์ฟเวอร์เสมอ)
  * อัปเดตไฟล์นี้เมื่อไร ให้เปลี่ยนเลข VERSION
  */
-var VERSION = 'v2';
+var VERSION = 'v3';
 var SHELL = 'followup-shell-' + VERSION;
 var CDN = 'followup-cdn-' + VERSION;
 var CORE = ['/', '/app', '/app.css', '/app.js', '/theme.js', '/tw.css', '/config.js', '/api.js', '/public.css', '/public.js', '/icon.svg', '/manifest.webmanifest'];
