@@ -1361,6 +1361,7 @@
     else if (k === 'linestatus') inner = shLineStatus();
     else if (k === 'backup') inner = shBackup();
     else if (k === 'defpw') inner = shDefPw();
+    else if (k === 'remind') inner = shRemind();
     else if (k === 'phbulk') inner = shPhBulk();
     else if (k === 'dev') inner = shDev();
     else if (k === 'report-config') inner = shReportCfg();
@@ -1377,8 +1378,17 @@
     else if (k === 'img') inner = shImg();
     else if (k === 'done') inner = '<div class="done-ic">' + ic(S.sheet.icon || 'check', 44) + '</div><h3 class="done-t">' + esc(S.sheet.title) + '</h3><p class="done-s">' + esc(S.sheet.sub) + '</p>' + (S.sheet.next ? '<ol class="next">' + S.sheet.next.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : '') +
       '<div class="actbar-in">' + (S.sheet.home ? '<button class="btn btn-primary" data-act="done-home">กลับหน้าแรก</button>' : '') + (S.sheet.again ? '<button class="btn btn-ghost" data-act="new-case">บันทึกคนต่อไป</button>' : '') + (S.sheet.home ? '' : '<button class="btn btn-primary" data-act="close-sheet">' + esc(S.sheet.btn || 'ตกลง') + '</button>') + '</div>';
-    el.innerHTML = '<div class="sheet-bg" data-act="sheet-locked"><div class="sheet" data-act="noop" role="dialog" aria-modal="true"><div class="grab"></div>' +
-      '<button class="sh-x" data-act="close-sheet" aria-label="ปิดหน้าต่าง" title="ปิด">' + ic('x', 20) + '</button>' + inner + '</div></div>';
+    var body = '<div class="grab"></div><button class="sh-x" data-act="close-sheet" aria-label="ปิดหน้าต่าง" title="ปิด">' + ic('x', 20) + '</button>' + inner;
+    var cur = el.querySelector('.sheet');
+    if (cur && el.getAttribute('data-kind') === k && S.sheet.__open) {
+      // หน้าต่างเดิม: เปลี่ยนเฉพาะเนื้อหา ไม่เล่นแอนิเมชันเปิดซ้ำ และคงตำแหน่งที่เลื่อนไว้
+      var top = cur.scrollTop, fid = document.activeElement && document.activeElement.id;
+      cur.innerHTML = body; cur.scrollTop = top;
+      if (fid && $(fid) && cur.contains($(fid))) { try { $(fid).focus(); } catch (e) {} }
+    } else {
+      el.innerHTML = '<div class="sheet-bg" data-act="sheet-locked"><div class="sheet" data-act="noop" role="dialog" aria-modal="true">' + body + '</div></div>';
+      el.setAttribute('data-kind', k); S.sheet.__open = true;
+    }
     document.body.style.overflow = 'hidden';
     if (k === 'line' && S.sheet.code) drawQR();
     if (k === 'sig' && S.sheet.mode === 'draw') initSigPad();
@@ -2211,6 +2221,57 @@
       img.onerror = function () { URL.revokeObjectURL(url); reject({ message: 'เปิดรูปนี้ไม่ได้' }); };
       img.src = url;
     });
+  }
+  /* ---------- ตั้งวันแจ้งเตือนอัตโนมัติ (LINE OA + ในแอป) ---------- */
+  var TH_WD = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'], TH_WD_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+  function remNext(f, n) {
+    var out = [], t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    var passedToday = new Date().getHours() >= f.hour;
+    for (var i = 0; i < 120 && out.length < n; i++) {
+      var d = new Date(t0.getTime() + i * DAY), key = ymd(d.getTime());
+      if (i === 0 && passedToday) continue;
+      if (f.weekdays.indexOf(d.getDay()) >= 0 || f.dates.indexOf(key) >= 0) out.push(d);
+    }
+    return out;
+  }
+  function shRemind() {
+    var s = S.sheet, d = s.data, h = '<h3 class="sh-t">ตั้งเวลาแจ้งเตือนอัตโนมัติ</h3><p class="sh-s">ส่งทาง LINE OA และในแอป เฉพาะวันที่เลือก ไม่ต้องแจ้งทุกวัน</p>';
+    if (!d) return h + twLoad('กำลังโหลด');
+    var f = s.form;
+    if (!d.lineOn) h += '<div class="warnbox" style="margin-bottom:12px">LINE OA ยังไม่เปิดใช้งาน ตอนนี้จะแจ้งเตือนในแอปอย่างเดียว <button class="link" data-act="adm-open" data-v="line">ตั้งค่า LINE</button></div>';
+    else if (!d.lineRemind) h += '<div class="warnbox" style="margin-bottom:12px">ปิด "ส่ง LINE แจ้งเตือนอัตโนมัติ" ไว้ในหน้าตั้งค่า ผู้ปกครองจะไม่ได้รับทาง LINE</div>';
+    h += '<button class="toggle" data-act="rm-toggle" data-v="enabled" style="margin-bottom:12px"><span><b>เปิดแจ้งเตือนอัตโนมัติ</b><br><small class="t-muted">' + (f.enabled ? 'ส่งตามวันและเวลาที่เลือกด้านล่าง' : 'ปิดอยู่ แจ้งเตือนเองได้ด้วยปุ่ม ส่งตอนนี้') + '</small></span><span class="sw' + (f.enabled ? ' on' : '') + '"></span></button>';
+    h += '<span class="lbl">วันในสัปดาห์ (ทุกสัปดาห์)</span><div class="rm-wd">' + [1, 2, 3, 4, 5, 6, 0].map(function (i) {
+      return '<button data-act="rm-wd" data-v="' + i + '" aria-pressed="' + (f.weekdays.indexOf(i) >= 0) + '" title="' + TH_WD_FULL[i] + '">' + TH_WD[i] + '</button>';
+    }).join('') + '</div>';
+    h += '<div class="opts" style="margin:-4px 0 14px">' + [['จ-ศ', [1, 2, 3, 4, 5]], ['จ พ ศ', [1, 3, 5]], ['สัปดาห์ละครั้ง (จ)', [1]], ['ล้าง', []]].map(function (q, i) {
+      return '<button class="fchip" data-act="rm-quick" data-v="' + i + '">' + q[0] + '</button>';
+    }).join('') + '</div>';
+    h += '<span class="lbl">วันที่เจาะจง (เช่น ก่อนสอบ ก่อนส่งผล)</span><div class="rm-add"><input class="inp" type="date" id="rmDate" min="' + ymd(now()) + '"><button class="btn btn-ghost" data-act="rm-add-date">' + ic('plus', 18) + 'เพิ่ม</button></div>';
+    h += '<div class="rm-dates">' + (f.dates.length ? f.dates.map(function (x) {
+      var t = parseYmd(x);
+      return '<span class="rm-date">' + ic('calendar', 14) + TH_WD[new Date(t).getDay()] + ' ' + thDate(t) + '<button data-act="rm-del-date" data-v="' + esc(x) + '" aria-label="ลบ">' + ic('x', 12) + '</button></span>';
+    }).join('') : '<span class="t-muted" style="font-size:13px">ยังไม่มี</span>') + '</div>';
+    h += '<label class="field"><span class="lbl">เวลาส่ง</span><select class="inp" id="rmHour">' + [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map(function (x) {
+      return '<option value="' + x + '"' + (f.hour === x ? ' selected' : '') + '>' + pad(x) + ':00 น.</option>';
+    }).join('') + '</select></label>';
+    h += '<span class="lbl">ผู้รับ</span><div class="group" style="margin-bottom:12px">' + [
+      ['toStudents', 'นักเรียน และผู้ปกครองทาง LINE', 'สรุปวิชาที่ยังค้างของแต่ละคน พร้อมวันครบกำหนด'],
+      ['toTeachers', 'ครูผู้สอน และครูที่ปรึกษา', 'สรุปจำนวนรายการค้างในวิชาที่สอน และนักเรียนค้างในห้องที่ปรึกษา'],
+      ['toStaff', 'งานวัดผล และผู้ดูแลระบบ', 'จำนวนรายการรอตรวจสอบ / รออนุมัติ']
+    ].map(function (r) {
+      return '<button class="toggle rm-tg" data-act="rm-toggle" data-v="' + r[0] + '"><span><b>' + r[1] + '</b><br><small class="t-muted">' + r[2] + '</small></span><span class="sw' + (f[r[0]] ? ' on' : '') + '"></span></button>';
+    }).join('') + '</div>';
+    h += '<span class="lbl">รายการที่แจ้ง</span><div class="opts" style="margin-bottom:14px">' + [['all', 'ทุกรายการที่ยังค้าง'], ['due', 'เฉพาะใกล้ครบ (' + d.cfg.daysBefore + ' วัน) และเลยกำหนด']].map(function (o) {
+      return '<button class="fchip" data-act="rm-scope" data-v="' + o[0] + '" aria-pressed="' + (f.scope === o[0]) + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+    var nx = f.enabled ? remNext(f, 5) : [];
+    h += '<div class="rm-next"><b>' + ic('clock', 16) + ' รอบถัดไป</b>' + (nx.length ? '<ul>' + nx.map(function (x) {
+      return '<li>วัน' + TH_WD_FULL[x.getDay()] + ' ' + thDate(x.getTime()) + ' เวลา ' + pad(f.hour) + ':00 น.</li>';
+    }).join('') + '</ul>' : '<p>' + (f.enabled ? 'ยังไม่ได้เลือกวัน' : 'ปิดการแจ้งเตือนอัตโนมัติ') + '</p>') +
+      '<small>ตอนนี้มีนักเรียนค้าง ' + d.stats.students + ' คน ผู้ปกครองเชื่อม LINE ' + d.stats.parents + ' คน' + (d.cfg.lastRun ? ' · ส่งล่าสุด ' + thDate(parseYmd(d.cfg.lastRun)) : '') + '</small></div>';
+    h += '<div id="formErr" class="err" role="alert"></div><div class="actbar-in"><button class="btn btn-ghost" data-act="rm-now">' + ic('send', 18) + 'ส่งตอนนี้</button><button class="btn btn-primary" data-act="rm-save">' + ic('check', 18) + 'บันทึกตาราง</button></div>';
+    return h;
   }
   function shDefPw() {
     var s = S.sheet, d = s.data, h = '<h3 class="sh-t">รหัสผ่านเริ่มต้น</h3><p class="sh-s">กำหนดรหัสเดียวกันให้ทุกคน ใช้เป็นรหัสผ่านหลักได้เลย ใครอยากเปลี่ยนก็เปลี่ยนเองได้ที่เมนู ฉัน → เปลี่ยนรหัสผ่าน</p>';
@@ -3085,6 +3146,7 @@
       rows.push(['students', 'user', 'นักเรียน', 'นำเข้าจาก Excel แก้ไขข้อมูล รีเซ็ตรหัส']);
       rows.push(['subjects', 'file', 'รายวิชา', 'รหัสวิชาและครูผู้สอน']);
       if (isAdmin()) rows.push(['line', 'chat', 'LINE OA', 'สถานะ โควตาข้อความ Webhook ทดสอบส่ง']);
+      if (isAdmin()) rows.push(['remind', 'bell', 'ตั้งวันแจ้งเตือนอัตโนมัติ', 'เลือกวันและเวลาส่ง LINE OA แทนการแจ้งทุกวัน']);
       if (isAdmin()) rows.push(['dev', 'user', 'ประวัติผู้พัฒนา', 'รูป ชื่อ ผลงาน ช่องทางติดต่อ แสดงที่หน้าแรก']);
       if (isAdmin()) rows.push(['logo', 'image', 'โลโก้โรงเรียน', 'อัปโหลดรูปโลโก้ใช้ทั้งระบบ']);
       rows.push(['report', 'printer', 'รูปแบบรายงาน', 'หัวรายงานและผู้ลงนาม']);
@@ -3468,6 +3530,16 @@
             .catch(function (err) { closeSheet(); toast(err.message || 'โหลดประวัติผู้พัฒนาไม่สำเร็จ'); });
           break;
         }
+        if (v === 'remind') {
+          openSheet({ kind: 'remind', data: null });
+          API.call('reminderInfo').then(function (d) {
+            if (!S.sheet || S.sheet.kind !== 'remind') return;
+            var c = d.cfg;
+            S.sheet.data = d; S.sheet.form = { enabled: c.enabled, weekdays: c.weekdays.slice(), dates: c.dates.slice(), hour: c.hour, toStudents: c.toStudents, toTeachers: c.toTeachers, toStaff: c.toStaff, scope: c.scope };
+            renderSheet();
+          }).catch(function (err) { closeSheet(); toast(err.message || 'โหลดไม่สำเร็จ'); });
+          break;
+        }
         if (v === 'defpw') {
           openSheet({ kind: 'defpw', data: null });
           API.call('adminDefaultPw').then(function (d) {
@@ -3519,6 +3591,37 @@
       case 'phb-del': s.items.splice(+el.getAttribute('data-i'), 1); phRematch(); renderSheet(); break;
       case 'phb-clear': s.items = []; renderSheet(); break;
       case 'phb-run': phbRun(); break;
+      case 'rm-toggle': s.form[v] = !s.form[v]; renderSheet(); break;
+      case 'rm-wd': var wv = +v, wi = s.form.weekdays.indexOf(wv); if (wi >= 0) s.form.weekdays.splice(wi, 1); else s.form.weekdays.push(wv); renderSheet(); break;
+      case 'rm-quick': s.form.weekdays = [[1, 2, 3, 4, 5], [1, 3, 5], [1], []][+v].slice(); renderSheet(); break;
+      case 'rm-scope': s.form.scope = v; renderSheet(); break;
+      case 'rm-add-date':
+        var rd = $('rmDate'), rv = rd && rd.value;
+        if (!rv) { toast('เลือกวันที่ก่อน', 'warning'); break; }
+        if (rv < ymd(now())) { toast('เลือกวันที่ตั้งแต่วันนี้เป็นต้นไป', 'warning'); break; }
+        if (s.form.dates.indexOf(rv) < 0) { s.form.dates.push(rv); s.form.dates.sort(); }
+        renderSheet();
+        break;
+      case 'rm-del-date': s.form.dates = s.form.dates.filter(function (x) { return x !== v; }); renderSheet(); break;
+      case 'rm-save':
+        loading('กำลังบันทึกตารางแจ้งเตือน');
+        API.call('reminderSave', { cfg: s.form }).then(function (d) {
+          loaded(); haptic(); s.data = d; renderSheet();
+          var nx = s.form.enabled ? remNext(s.form, 1)[0] : null;
+          successBox('บันทึกตารางแจ้งเตือนแล้ว', nx ? 'รอบถัดไป วัน' + TH_WD_FULL[nx.getDay()] + ' ' + thDate(nx.getTime()) + ' เวลา ' + pad(s.form.hour) + ':00 น.' : 'ปิดการแจ้งเตือนอัตโนมัติแล้ว');
+        }).catch(function (err) { loaded(); var re = $('formErr'); if (re) re.textContent = err.message || 'บันทึกไม่สำเร็จ'; });
+        break;
+      case 'rm-now':
+        confirmBox({ title: 'ส่งแจ้งเตือนตอนนี้?', text: 'ส่งตามผู้รับและรายการที่ตั้งไว้ (บันทึกตารางก่อนถ้าเพิ่งแก้)', ok: 'ส่งเลย' }).then(function (ok) {
+          if (!ok) return;
+          loading('กำลังส่งแจ้งเตือน', 'อาจใช้เวลาสักครู่');
+          API.call('reminderRunNow', {}).then(function (d) {
+            loaded(); haptic(); s.data = d.info; renderSheet();
+            var r = d.result;
+            successBox('ส่งแจ้งเตือนแล้ว', 'นักเรียน ' + r.students + ' คน (LINE ผู้ปกครอง ' + r.parentsLine + ' คน) ครู ' + r.teachers + ' คน');
+          }).catch(function (err) { loaded(); toast(err.message || 'ส่งไม่สำเร็จ'); });
+        });
+        break;
       case 'dp-eye': s.show = !s.show; renderSheet(); break;
       case 'dp-force': s.form[v] = !s.form[v]; renderSheet(); break;
       case 'dp-apply': s.form.apply = v; renderSheet(); break;
@@ -3605,8 +3708,8 @@
       case 'sig-clear': renderSheet(); s.drawn = false; break;
       case 'sig-use':
         if (!s.drawn) { toast('เซ็นชื่อบนกรอบก่อน'); return; }
-        var pad = $('sigPad'), tmp = document.createElement('canvas');
-        tmp.width = pad.width; tmp.height = pad.height; tmp.getContext('2d').drawImage(pad, 0, 0);
+        var sgPad = $('sigPad'), tmp = document.createElement('canvas');
+        tmp.width = sgPad.width; tmp.height = sgPad.height; tmp.getContext('2d').drawImage(sgPad, 0, 0);
         s.data = trimSignature(tmp, false, 140); s.mode = ''; renderSheet();
         break;
       case 'sig-upload': $('fSig').value = ''; $('fSig').click(); break;
@@ -3922,6 +4025,7 @@
       return;
     }
     if (t.getAttribute && t.getAttribute('data-sp') && S.sheet && S.sheet.kind === 'sigpos') { S.sigReturn.signers[S.sheet.i][t.getAttribute('data-sp')] = +t.value; spApply(); return; }
+    if (t.id === 'rmHour' && S.sheet && S.sheet.kind === 'remind') { S.sheet.form.hour = +t.value; renderSheet(); return; }
     if (t.getAttribute && t.getAttribute('data-ek') && S.sheet && S.sheet.kind === 'edit') { S.sheet[t.getAttribute('data-ek')] = t.value; return; }
     if (t.getAttribute && t.getAttribute('data-dp') && S.sheet && S.sheet.kind === 'defpw') { S.sheet.form[t.getAttribute('data-dp')] = t.value; return; }
     if (t.id === 'gsq') { S.gsq = t.value; flipRender($('gsres'), gsResults(t.value)); return; }
