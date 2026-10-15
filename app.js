@@ -2034,20 +2034,22 @@
     });
   }
   function shDefPw() {
-    var s = S.sheet, d = s.data, h = '<h3 class="sh-t">รหัสผ่านเริ่มต้น</h3><p class="sh-s">กำหนดรหัสเดียวกันให้ทุกคน ใช้เข้าระบบครั้งแรก แล้วระบบจะบังคับให้ตั้งรหัสใหม่ของตัวเอง</p>';
+    var s = S.sheet, d = s.data, h = '<h3 class="sh-t">รหัสผ่านเริ่มต้น</h3><p class="sh-s">กำหนดรหัสเดียวกันให้ทุกคน ใช้เป็นรหัสผ่านหลักได้เลย ใครอยากเปลี่ยนก็เปลี่ยนเองได้ที่เมนู ฉัน → เปลี่ยนรหัสผ่าน</p>';
     if (!d) return h + twLoad('กำลังโหลด');
     var f = s.form, st = d.stats, show = !!s.show;
     var inp = function (k, label, ph, hint) {
       return '<label class="field"><span class="lbl">' + label + '</span><span class="pw-wrap"><input class="inp" data-dp="' + k + '" type="' + (show ? 'text' : 'password') + '" autocomplete="off" maxlength="30" value="' + esc(f[k] || '') + '" placeholder="' + esc(ph) + '">' +
         '<button type="button" class="pw-eye" data-act="dp-eye" aria-label="แสดงรหัส">' + ic(show ? 'eyeoff' : 'eye', 20) + '</button></span></label>' + (hint ? '<p class="hint" style="margin:-6px 2px 12px">' + hint + '</p>' : '');
     };
-    h += '<div class="dp-stats"><div><b>' + st.students + '</b><span>นักเรียน</span><small>ยังไม่ตั้งรหัสเอง ' + st.studentsUnset + '</small></div><div><b>' + st.staff + '</b><span>ครูและเจ้าหน้าที่</span><small>ยังไม่ตั้งรหัสเอง ' + st.staffUnset + '</small></div></div>';
+    h += '<div class="dp-stats"><div><b>' + st.students + '</b><span>นักเรียน</span><small>ใช้รหัสเริ่มต้นอยู่ ' + st.studentsUnset + '</small></div><div><b>' + st.staff + '</b><span>ครูและเจ้าหน้าที่</span><small>ใช้รหัสเริ่มต้นอยู่ ' + st.staffUnset + '</small></div></div>';
     h += inp('student', 'รหัสเริ่มต้นของนักเรียน', 'เว้นว่าง = ใช้เลขประจำตัวของแต่ละคน', 'ว่างไว้ = นักเรียนใช้เลขประจำตัวเป็นรหัสครั้งแรก (แบบเดิม)');
+    h += '<button class="toggle" data-act="dp-force" data-v="forceStudent" style="margin:-4px 0 14px"><span><b>บังคับนักเรียนเปลี่ยนรหัสตอนเข้าครั้งแรก</b><br><small class="t-muted">' + (f.forceStudent ? 'เปิด: เข้าครั้งแรกต้องตั้งรหัสใหม่ก่อนใช้งาน' : 'ปิด: ใช้รหัสนี้เป็นรหัสหลักได้เลย เปลี่ยนเองได้ทีหลัง') + '</small></span><span class="sw' + (f.forceStudent ? ' on' : '') + '"></span></button>';
     h += inp('staff', 'รหัสเริ่มต้นของครูและเจ้าหน้าที่', 'เช่น kru2569', 'ไม่รวมบัญชีผู้ดูแลระบบ');
+    h += '<button class="toggle" data-act="dp-force" data-v="forceStaff" style="margin:-4px 0 14px"><span><b>บังคับครูเปลี่ยนรหัสตอนเข้าครั้งแรก</b><br><small class="t-muted">' + (f.forceStaff ? 'เปิด: เข้าครั้งแรกต้องตั้งรหัสใหม่ก่อนใช้งาน' : 'ปิด: ใช้รหัสนี้เป็นรหัสหลักได้เลย เปลี่ยนเองได้ทีหลัง') + '</small></span><span class="sw' + (f.forceStaff ? ' on' : '') + '"></span></button>';
     h += '<span class="lbl">ใช้กับบัญชีที่มีอยู่แล้ว</span><div class="dp-opts">' + [
       ['none', 'เก็บค่าไว้อย่างเดียว', 'ใช้กับบัญชีใหม่ การนำเข้า และการรีเซ็ตรหัสครั้งต่อไป'],
       ['unset', 'เฉพาะคนที่ยังไม่ตั้งรหัสเอง', 'คนที่ตั้งรหัสของตัวเองแล้วไม่ถูกเปลี่ยน (แนะนำ)'],
-      ['all', 'รีเซ็ตทุกคน', 'ทุกคนต้องเข้าด้วยรหัสเริ่มต้นแล้วตั้งรหัสใหม่']
+      ['all', 'รีเซ็ตทุกคน', 'ทุกคนกลับมาใช้รหัสเริ่มต้นนี้ รหัสที่ตั้งเองไว้จะใช้ไม่ได้']
     ].map(function (o) {
       return '<button class="dp-o' + (o[0] === 'all' ? ' bad' : '') + '" data-act="dp-apply" data-v="' + o[0] + '" aria-pressed="' + (f.apply === o[0]) + '"><i></i><span><b>' + o[1] + '</b><small>' + o[2] + '</small></span></button>';
     }).join('') + '</div>';
@@ -2770,7 +2772,7 @@
     h += '<div class="group">' + (list.length ? list.map(function (u) {
       return '<button class="row" data-act="adm-user-edit" data-id="' + esc(u.id) + '">' + avatarHtml(u.id, u.firstName, u.photoVer) + '<span class="row-main"><span class="row-t">' + esc(u.name) + '</span>' +
         '<span class="row-s">' + esc(u.username) + (u.advisorClass ? ' ที่ปรึกษา ' + esc(u.advisorClass) : '') + '</span><span class="row-s"><span class="chip ch-info">' + roleName(u.role) + '</span>' +
-        (u.active ? '' : '<span class="chip ch-bad">ปิดใช้งาน</span>') + (u.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '') + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
+        (u.active ? '' : '<span class="chip ch-bad">ปิดใช้งาน</span>') + (u.usesDefault ? '<span class="chip ch-info">ใช้รหัสเริ่มต้น</span>' : (u.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '')) + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     }).join('') : '<div class="empty">ยังไม่มีบัญชี</div>') + '</div></main>';
     if (isAdmin()) h += '<button class="fab no-print" data-act="adm-user-new">' + ic('plus') + 'เพิ่มครู</button>';
     if (isAdmin() && list.length) h = h.replace('<main class="main">', '<main class="main"><div class="ev-add" style="margin:0 0 12px"><button class="btn btn-ghost" data-act="phb-open" data-v="user">' + ic('camera', 20) + 'อัปโหลดรูปครูหลายคน</button></div>');
@@ -2807,7 +2809,7 @@
       var on = sel && sel[s.id];
       var inner = (sel ? '<span class="ck' + (on ? ' on' : '') + '">' + (on ? ic('check', 16) : '') + '</span>' : '') + avatarHtml(s.id, s.firstName, s.photoVer) + '<span class="row-main"><span class="row-t">' + esc(s.name) + '</span>' +
         '<span class="row-s">' + esc(s.classroom) + ' เลขที่ ' + esc(s.number) + ' เลขประจำตัว ' + esc(s.id) + '</span><span class="row-s">' +
-        (s.trackStatus === 'SUSPENDED' ? '<span class="chip ch-hold">แขวนการติดตาม</span>' : (s.trackStatus === 'WITHDRAWN' ? '<span class="chip ch-bad">ถอนชื่อ</span>' : (s.active ? '' : '<span class="chip ch-bad">ปิดบัญชี</span>'))) + (s.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '<span class="chip ch-ok">ตั้งรหัสแล้ว</span>') +
+        (s.trackStatus === 'SUSPENDED' ? '<span class="chip ch-hold">แขวนการติดตาม</span>' : (s.trackStatus === 'WITHDRAWN' ? '<span class="chip ch-bad">ถอนชื่อ</span>' : (s.active ? '' : '<span class="chip ch-bad">ปิดบัญชี</span>'))) + (s.usesDefault ? '<span class="chip ch-info">ใช้รหัสเริ่มต้น</span>' : (s.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '<span class="chip ch-ok">ตั้งรหัสเองแล้ว</span>')) +
         (s.lineLinked ? '<span class="chip ch-ok">LINE</span>' : '') + '</span></span>';
       if (sel) return '<button class="row' + (on ? ' sel' : '') + '" data-k="' + esc(s.id) + '" data-act="asel-t" data-id="' + esc(s.id) + '" aria-pressed="' + !!on + '">' + inner + '</button>';
       var row = '<button class="row"' + (adm ? '' : ' data-k="' + esc(s.id) + '"') + ' data-act="adm-stu-edit" data-id="' + esc(s.id) + '">' + inner + '<span class="chev">' + ic('chev', 20) + '</span></button>';
@@ -3289,7 +3291,7 @@
         if (v === 'defpw') {
           openSheet({ kind: 'defpw', data: null });
           API.call('adminDefaultPw').then(function (d) {
-            if (S.sheet && S.sheet.kind === 'defpw') { S.sheet.data = d; S.sheet.form = { student: d.student, staff: d.staff, apply: 'unset', target: 'both' }; renderSheet(); }
+            if (S.sheet && S.sheet.kind === 'defpw') { S.sheet.data = d; S.sheet.form = { student: d.student, staff: d.staff, forceStudent: !!d.forceStudent, forceStaff: !!d.forceStaff, apply: 'unset', target: 'both' }; renderSheet(); }
           }).catch(function (err) { closeSheet(); toast(err.message || 'โหลดไม่สำเร็จ'); });
           break;
         }
@@ -3338,6 +3340,7 @@
       case 'phb-clear': s.items = []; renderSheet(); break;
       case 'phb-run': phbRun(); break;
       case 'dp-eye': s.show = !s.show; renderSheet(); break;
+      case 'dp-force': s.form[v] = !s.form[v]; renderSheet(); break;
       case 'dp-apply': s.form.apply = v; renderSheet(); break;
       case 'dp-target': s.form.target = v; renderSheet(); break;
       case 'dp-save':
@@ -3351,7 +3354,7 @@
             successBox('บันทึกรหัสเริ่มต้นแล้ว', fm.apply === 'none' ? 'ใช้กับบัญชีใหม่และการรีเซ็ตครั้งต่อไป' : 'ปรับแล้ว นักเรียน ' + d.students + ' คน ครู ' + d.staff + ' คน');
           }).catch(function (err) { loaded(); if (de) de.textContent = err.message || 'บันทึกไม่สำเร็จ'; });
         };
-        if (fm.apply === 'all') confirmBox({ title: 'รีเซ็ตรหัสผ่าน' + who + '?', text: 'ทุกคนต้องเข้าระบบด้วยรหัสเริ่มต้นแล้วตั้งรหัสใหม่ (ไม่รวมผู้ดูแลระบบ)', ok: 'รีเซ็ตทั้งหมด', danger: true }).then(function (ok) { if (ok) go2(); });
+        if (fm.apply === 'all') confirmBox({ title: 'รีเซ็ตรหัสผ่าน' + who + '?', text: 'ทุกคนจะกลับมาใช้รหัสเริ่มต้นนี้ รหัสที่ตั้งเองไว้จะใช้ไม่ได้ (ไม่รวมผู้ดูแลระบบ)', ok: 'รีเซ็ตทั้งหมด', danger: true }).then(function (ok) { if (ok) go2(); });
         else go2();
         break;
       case 'bk-toggle':
@@ -3475,7 +3478,7 @@
         loading('กำลังนำเข้า ' + parsed.rows.length + ' คน', 'อาจใช้เวลาสักครู่');
         API.call('adminImportStudents', { rows: parsed.rows }).then(function (d) {
           loaded(); haptic(); S.adm.students = null; loadAdm('students', true); S.students = null;
-          openSheet({ kind: 'done', icon: 'check', title: 'นำเข้าแล้ว', sub: 'เพิ่มใหม่ ' + d.created + ' คน อัปเดต ' + d.updated + ' คน', next: d.created ? ['นักเรียนใหม่ใช้รหัสผ่านเริ่มต้นของโรงเรียน (ไม่ได้กำหนด = เลขประจำตัว)', 'ระบบจะให้ตั้งรหัสใหม่ตอนเข้าใช้ครั้งแรก'] : null });
+          openSheet({ kind: 'done', icon: 'check', title: 'นำเข้าแล้ว', sub: 'เพิ่มใหม่ ' + d.created + ' คน อัปเดต ' + d.updated + ' คน', next: d.created ? ['นักเรียนใหม่ใช้รหัสผ่านเริ่มต้นของโรงเรียน (ไม่ได้กำหนด = เลขประจำตัว)', 'เปลี่ยนรหัสเองได้ที่เมนู ฉัน'] : null });
         }).catch(function (err) { loaded(); setBusy(el, false); if (ie) ie.textContent = err.message || 'นำเข้าไม่สำเร็จ'; });
         break;
 
