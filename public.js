@@ -50,7 +50,10 @@
     var hasLogin = false;
     try { hasLogin = !!localStorage.getItem('followup_token'); } catch (e) {}
     var loginLabel = hasLogin ? 'เข้าระบบของฉัน' : 'เข้าสู่ระบบ';
-    return '<header class="pub-hero"><div class="pub-top"><button data-act="reload" aria-label="รีเฟรช">' + svg('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>') + '</button>' +
+    return '<header class="pub-hero tw-isolate"><div class="tw-pointer-events-none tw-absolute tw-inset-0 tw--z-10 tw-overflow-hidden" aria-hidden="true">' +
+      '<div class="tw-absolute tw--left-16 tw--top-20 tw-h-72 tw-w-72 tw-rounded-full tw-bg-fuchsia-300/30 tw-blur-3xl tw-animate-blob"></div>' +
+      '<div class="tw-absolute tw-right-0 tw-top-1/3 tw-h-80 tw-w-80 tw-rounded-full tw-bg-cyan-300/25 tw-blur-3xl tw-animate-blob" style="animation-delay:-5s"></div>' +
+      '<div class="tw-absolute tw-bottom-0 tw-left-1/3 tw-h-64 tw-w-64 tw-rounded-full tw-bg-amber-200/25 tw-blur-3xl tw-animate-blob" style="animation-delay:-9s"></div></div><div class="pub-top"><button data-act="reload" aria-label="รีเฟรช">' + svg('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>') + '</button>' +
       '<button class="pub-dev" data-act="dev">' + svg(IC.user) + '<span>ประวัติผู้พัฒนา</span></button></div>' + logo() +
       '<h1>สถิติการติดตามการแก้ผลการเรียน 0 ร มส</h1><p>' + esc(d ? d.school + ' ' + d.area : (C.SCHOOL || '')) + '</p>' +
       (d ? '<p>ปีการศึกษา ' + esc(d.year) + ' ภาคเรียนปัจจุบัน ' + esc(d.semester) + '</p>' : '') +
@@ -113,9 +116,11 @@
     charts.forEach(function (c) { try { c.destroy(); } catch (e) {} });
     charts = [];
     if (!DATA) {
-      root.innerHTML = hero(null) + '<div class="kpis">' + [1, 2, 3, 4].map(function () {
-        return '<div class="kpi"><div class="sk" style="height:38px;width:38px;border-radius:12px"></div><div class="sk sk-l" style="height:26px;width:50%;margin-top:10px"></div><div class="sk sk-l" style="width:70%"></div></div>';
-      }).join('') + '</div><div class="charts"><div class="chart-card"><div class="sk" style="height:260px"></div></div><div class="chart-card"><div class="sk" style="height:260px"></div></div></div>';
+      var shim = '<span class="tw-pointer-events-none tw-absolute tw-inset-0 tw--translate-x-full tw-animate-shimmer tw-bg-gradient-to-r tw-from-transparent tw-via-white/50 tw-to-transparent"></span>';
+      root.innerHTML = hero(null) + '<div class="kpis">' + [1, 2, 3, 4].map(function (i) {
+        return '<div class="kpi tw-relative tw-overflow-hidden" style="animation:fade .4s ' + (i * 0.08) + 's both"><div class="sk" style="height:38px;width:38px;border-radius:12px"></div><div class="sk sk-l" style="height:26px;width:50%;margin-top:10px"></div><div class="sk sk-l" style="width:70%"></div>' + shim + '</div>';
+      }).join('') + '</div><div class="tw-my-4 tw-flex tw-items-center tw-justify-center tw-gap-2 tw-text-[13.5px] tw-text-[var(--muted)]"><span class="tw-relative tw-flex tw-h-2.5 tw-w-2.5"><span class="tw-absolute tw-inline-flex tw-h-full tw-w-full tw-animate-ping tw-rounded-full tw-bg-[var(--brand)] tw-opacity-60"></span><span class="tw-relative tw-inline-flex tw-h-2.5 tw-w-2.5 tw-rounded-full tw-bg-[var(--brand)]"></span></span>กำลังโหลดสถิติล่าสุดของโรงเรียน</div>' +
+        '<div class="charts"><div class="chart-card tw-relative tw-overflow-hidden"><div class="sk" style="height:260px"></div>' + shim + '</div><div class="chart-card tw-relative tw-overflow-hidden"><div class="sk" style="height:260px"></div>' + shim + '</div></div>';
       return;
     }
     var d = DATA, st = d.status;
@@ -141,10 +146,10 @@
     drawCharts(d);
   }
   function kpi(cls, icon, n, label, sub) {
-    return '<div class="kpi ' + cls + '"><div class="ic">' + svg(icon) + '</div><div class="n">' + esc(n) + '</div><div class="l"><b>' + esc(label) + '</b><br>' + esc(sub) + '</div></div>';
+    return '<div class="kpi ' + cls + ' tw-relative tw-overflow-hidden tw-transition tw-duration-300 hover:tw--translate-y-1 hover:tw-shadow-[0_18px_40px_var(--glow)]"><span class="tw-pointer-events-none tw-absolute tw--right-6 tw--top-6 tw-h-20 tw-w-20 tw-rounded-full tw-bg-[var(--brand-soft)] tw-opacity-70"></span><div class="ic tw-relative">' + svg(icon) + '</div><div class="n tw-relative tw-bg-gradient-to-r tw-from-[var(--ink)] tw-to-[var(--brand)] tw-bg-clip-text tw-text-transparent">' + esc(n) + '</div><div class="l"><b>' + esc(label) + '</b><br>' + esc(sub) + '</div></div>';
   }
   function card(title, sub, id, cls, tall) {
-    return '<div class="chart-card ' + (cls || '') + '"><h3>' + esc(title) + '</h3><div class="sub">' + esc(sub) + '</div><div class="cbox' + (tall ? ' tall' : '') + '"><canvas id="' + id + '"></canvas></div></div>';
+    return '<div class="chart-card ' + (cls || '') + ' tw-transition tw-duration-300 hover:tw-shadow-[0_16px_36px_var(--glow)]" style="animation:fade .5s both"><h3>' + esc(title) + '</h3><div class="sub">' + esc(sub) + '</div><div class="cbox' + (tall ? ' tall' : '') + '"><canvas id="' + id + '"></canvas></div></div>';
   }
   function foot(d) {
     var t = new Date(d.updatedAt);
