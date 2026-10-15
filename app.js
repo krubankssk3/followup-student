@@ -432,12 +432,13 @@
   }
   function canPhoto(st) {
     var u = S.user;
+    if (st && st.role) return isAdmin() || st.id === u.id; // รูปครู: ผู้ดูแลระบบ หรือเจ้าของบัญชี
     return u.role === 'admin' || u.role === 'measure' || (u.role === 'teacher' && u.advisorClass && st && String(st.classroom) === String(u.advisorClass));
   }
   function photoBlock(st) {
     var img = photoOf(st.id, st.photoVer);
     return '<div class="stu-ph"><div class="stu-ph-i"' + (st.photoVer ? ' data-ph="' + esc(st.id) + '"' : '') + '>' + (img ? '<img src="' + esc(img) + '" alt="">' : ic('user', 40)) + '</div>' +
-      '<div class="stu-ph-b"><b>รูปนักเรียน</b><small class="t-muted">ใช้ในรายชื่อ หน้านักเรียน และรายงาน ระบบครอปและย่อให้อัตโนมัติ</small>' +
+      '<div class="stu-ph-b"><b>' + (st.role ? 'รูปประจำตัว' : 'รูปนักเรียน') + '</b><small class="t-muted">' + (st.role ? 'แสดงในรายชื่อครูและแถบเมนู' : 'ใช้ในรายชื่อ หน้านักเรียน และรายงาน') + ' ระบบครอปและย่อให้อัตโนมัติ</small>' +
       (canPhoto(st) ? '<div class="stu-ph-a"><button class="btn btn-ghost" data-act="ph-pick" data-id="' + esc(st.id) + '">' + ic('camera', 18) + (st.photoVer ? 'เปลี่ยนรูป' : 'ใส่รูป') + '</button>' +
         (st.photoVer ? '<button class="btn btn-ghost" data-act="ph-remove" data-id="' + esc(st.id) + '" style="color:var(--zero)">ลบรูป</button>' : '') + '</div>' : '') + '</div></div>';
   }
@@ -447,6 +448,13 @@
       loaded(); haptic();
       phSet(id, data, d.ver);
       (S.adm.students || []).forEach(function (x) { if (x.id === id) x.photoVer = d.ver; });
+      (S.adm.users || []).forEach(function (x) { if (x.id === id) x.photoVer = d.ver; });
+      if (S.user.id === id) { S.user.photoVer = d.ver; try { API.setSession(null, S.user); } catch (e) {} }
+      if (S.sheet && S.sheet.kind === 'form' && S.sheet.form === 'user' && S.sheet.values && S.sheet.values.id === id) {
+        var uu = (S.adm.users || []).filter(function (x) { return x.id === id; })[0];
+        if (uu) S.sheet.top = photoBlock({ id: uu.id, photoVer: uu.photoVer, role: uu.role });
+        renderSheet();
+      }
       (S.students || []).forEach(function (x) { if (x.id === id) x.pv = d.ver; });
       S.cases.forEach(function (c) { if (c.sid === id) c.pv = d.ver; });
       saveCache();
@@ -1116,8 +1124,9 @@
   function vMe() {
     var u = S.user;
     var h = header('ฉัน', roleName(u.role));
-    h += '<main class="main"><div class="me">' + avatarHtml(u.id, u.firstName || u.displayName, u.role === 'student' ? u.photoVer : '') + '<div><div class="me-n">' + esc(u.displayName) + '</div><div class="me-s">' +
+    h += '<main class="main"><div class="me">' + avatarHtml(u.id, u.firstName || u.displayName, u.photoVer) + '<div><div class="me-n">' + esc(u.displayName) + '</div><div class="me-s">' +
       (u.role === 'student' ? esc(u.classroom) + ' เลขที่ ' + esc(u.number) + ' เลขประจำตัว ' + esc(u.username) : esc(u.department || '') + ' ชื่อผู้ใช้ ' + esc(u.username)) + '</div></div></div>';
+    if (u.role !== 'student') h += photoBlock({ id: u.id, photoVer: u.photoVer, role: u.role });
     h += '<div class="sec"><h2>บัญชีและการตั้งค่า</h2></div><div class="group">';
     h += '<button class="row" data-act="pw-open"><span class="nf-ic">' + ic('lock', 20) + '</span><span class="row-main"><span class="row-t">เปลี่ยนรหัสผ่าน</span><span class="row-s">แนะนำให้เปลี่ยนทุกภาคเรียน</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     h += '<button class="row" data-act="line-open"><span class="nf-ic ok">' + ic('chat', 20) + '</span><span class="row-main"><span class="row-t">' + (u.role === 'student' ? 'LINE ผู้ปกครอง' : 'LINE ส่วนตัว') + '</span><span class="row-s">' + (u.lineLinked ? 'รับแจ้งเตือนผ่าน LINE OA โรงเรียน' : (u.role === 'student' ? 'ให้ผู้ปกครองสแกน QR เพื่อรับแจ้งเตือน' : 'รับแจ้งเตือนงานทาง LINE')) + '</span></span>' + (u.lineLinked ? '<span class="chip ch-ok">เชื่อมแล้ว</span>' : '<span class="chip">ยังไม่เชื่อม</span>') + '</button>';
@@ -1142,7 +1151,7 @@
       '<span><b>' + esc(C.APP_NAME || 'ติดตามการแก้ 0 ร มส') + '</b><small>' + esc(setting('schoolName', C.SCHOOL || '')) + '</small></span></div><div class="nav-in">' + tabsFor(S.user.role).map(function (t) {
       var b = t[0] === 'notif' ? un : (t[0] === 'approve' ? pend : 0);
       return '<button data-act="tab" data-v="' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '><span class="pill">' + ic(t[2]) + '</span>' + t[1] + (b ? '<span class="badge">' + b + '</span>' : '') + '</button>';
-    }).join('') + '</div>' + navExtra() + '<div class="nav-user">' + avatarHtml(S.user.id, S.user.firstName || S.user.displayName, S.user.role === 'student' ? S.user.photoVer : '') + '<span><b>' + esc(S.user.displayName) + '</b><small>' + roleName(S.user.role) + '</small></span></div></nav>';
+    }).join('') + '</div>' + navExtra() + '<div class="nav-user">' + avatarHtml(S.user.id, S.user.firstName || S.user.displayName, S.user.photoVer) + '<span><b>' + esc(S.user.displayName) + '</b><small>' + roleName(S.user.role) + '</small></span></div></nav>';
   }
   /* ส่วนเสริมแถบเมนูซ้าย (จอคอม): ทางลัด สรุปย่อ ออกจากระบบ */
   function navExtra() {
@@ -1230,6 +1239,7 @@
     else if (k === 'linestatus') inner = shLineStatus();
     else if (k === 'backup') inner = shBackup();
     else if (k === 'defpw') inner = shDefPw();
+    else if (k === 'phbulk') inner = shPhBulk();
     else if (k === 'dev') inner = shDev();
     else if (k === 'report-config') inner = shReportCfg();
     else if (k === 'logo') inner = shLogo();
@@ -1374,13 +1384,18 @@
       processLogo(f).then(function (d) { S.sheet.newData = d; renderSheet(); }).catch(function (e) { toast(e.message); });
     });
     document.body.appendChild(lg);
+    var pb = document.createElement('input');
+    pb.type = 'file'; pb.id = 'fPhb'; pb.accept = 'image/*'; pb.multiple = true; pb.hidden = true;
+    pb.addEventListener('change', function () { phbAddFiles(pb.files); });
+    document.body.appendChild(pb);
     var fi = document.createElement('input');
     fi.type = 'file'; fi.id = 'fImp'; fi.hidden = true;
     fi.addEventListener('change', function () { impFile(fi.files && fi.files[0]); });
     document.body.appendChild(fi);
-    document.addEventListener('dragover', function (e) { if (S.sheet && S.sheet.kind === 'import') { e.preventDefault(); var d = $('impDrop'); if (d) d.className = 'imp-drop over'; } });
+    document.addEventListener('dragover', function (e) { if (S.sheet && S.sheet.kind === 'phbulk') { e.preventDefault(); return; } if (S.sheet && S.sheet.kind === 'import') { e.preventDefault(); var d = $('impDrop'); if (d) d.className = 'imp-drop over'; } });
     document.addEventListener('dragleave', function (e) { var d = $('impDrop'); if (d && e.target === d) d.className = 'imp-drop'; });
     document.addEventListener('drop', function (e) {
+      if (S.sheet && S.sheet.kind === 'phbulk') { e.preventDefault(); phbAddFiles(e.dataTransfer && e.dataTransfer.files); return; }
       if (!S.sheet || S.sheet.kind !== 'import') return;
       e.preventDefault(); var d = $('impDrop'); if (d) d.className = 'imp-drop';
       impFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
@@ -2052,6 +2067,141 @@
     }).catch(function (err) { if (S.sheet === sh) { sh.busy = null; renderSheet(); } toast(err.message || 'ทำรายการไม่สำเร็จ'); });
   }
 
+  /* ---------- อัปโหลดรูปหลายคนพร้อมกัน ---------- */
+  function phPeople(kind) {
+    if (kind === 'user') return (S.adm.users || []).map(function (u) { return { id: u.id, name: u.name, first: u.firstName || '', last: u.lastName || '', key: u.username, sub: u.username + ' · ' + roleName(u.role), cls: '', no: '', pv: u.photoVer }; });
+    var list = S.adm.students || [];
+    if (S.user.role === 'teacher') list = list.filter(function (s) { return s.classroom === S.user.advisorClass; });
+    return list.map(function (s) { return { id: s.id, name: s.name, first: s.firstName || '', last: s.lastName || '', key: s.id, sub: s.classroom + ' เลขที่ ' + s.number + ' · ' + s.id, cls: s.classroom, no: s.number, pv: s.photoVer }; });
+  }
+  /** จับคู่ชื่อไฟล์กับคน: เลขประจำตัว/ชื่อผู้ใช้ในชื่อไฟล์ ก่อน แล้วจึงลองชื่อ-นามสกุล */
+  function phMatch(fname, people, kind) {
+    var base = String(fname).replace(/\.[a-z0-9]+$/i, ''), low = base.toLowerCase(), nums = base.match(/\d{3,12}/g) || [];
+    var i, p;
+    for (i = 0; i < people.length; i++) {
+      p = people[i];
+      if (kind === 'user') { if (low.replace(/[^a-z0-9._-]/g, ' ').split(/\s+/).indexOf(String(p.key).toLowerCase()) >= 0) return p.id; }
+      else if (nums.indexOf(String(p.key)) >= 0) return p.id;
+    }
+    var t = base.replace(/[_\-.]+/g, ' ');
+    var best = null;
+    for (i = 0; i < people.length; i++) {
+      p = people[i];
+      if (p.first && t.indexOf(p.first) >= 0 && (!p.last || t.indexOf(p.last) >= 0)) return p.id;
+      if (!best && p.first && p.first.length >= 3 && t.indexOf(p.first) >= 0) best = p.id;
+    }
+    return best;
+  }
+  function natCmp(a, b) {
+    var ax = String(a).match(/\d+|\D+/g) || [], bx = String(b).match(/\d+|\D+/g) || [];
+    for (var i = 0; i < Math.min(ax.length, bx.length); i++) {
+      var x = ax[i], y = bx[i];
+      if (x === y) continue;
+      if (/^\d/.test(x) && /^\d/.test(y)) return (+x) - (+y);
+      return x < y ? -1 : 1;
+    }
+    return ax.length - bx.length;
+  }
+  function phRematch() {
+    var s = S.sheet, people = phPeople(s.who), used = {};
+    if (s.mode === 'order') {
+      var cls = s.cls, list = people.filter(function (p) { return !cls || p.cls === cls; }).sort(function (a, b) { return (+a.no || 0) - (+b.no || 0); });
+      var auto = s.items.filter(function (it) { return !it.manual; }), taken = {};
+      s.items.forEach(function (it) { if (it.manual && it.to) taken[it.to] = true; });
+      list = list.filter(function (p) { return !taken[p.id]; });
+      auto.sort(function (a, b) { return natCmp(a.name, b.name); }).forEach(function (it, i) { it.to = list[i] ? list[i].id : ''; it.auto = !!it.to; });
+    } else {
+      s.items.forEach(function (it) { if (!it.manual) { it.to = phMatch(it.name, people, s.who) || ''; it.auto = !!it.to; } });
+    }
+    s.items.forEach(function (it) { if (it.to) { if (used[it.to]) it.dup = true; else { it.dup = false; used[it.to] = true; } } });
+  }
+  function shPhBulk() {
+    var s = S.sheet, people = phPeople(s.who), byId = {};
+    people.forEach(function (p) { byId[p.id] = p; });
+    var h = '<h3 class="sh-t">อัปโหลดรูป' + (s.who === 'user' ? 'ครูและเจ้าหน้าที่' : 'นักเรียน') + 'หลายคน</h3><p class="sh-s">เลือกรูปทีละหลายไฟล์ ระบบจับคู่ให้อัตโนมัติ ครอปและย่อรูปให้เอง แล้วอัปโหลดรวดเดียว</p>';
+    if (s.busy) {
+      var pct = s.total ? Math.round(s.done * 100 / s.total) : 0;
+      return h + '<div class="phb-prog"><div class="phb-bar"><i style="width:' + pct + '%"></i></div><b>' + esc(s.busy) + '</b><span>' + s.done + ' / ' + s.total + ' รูป (' + pct + '%)</span></div>';
+    }
+    h += '<div class="seg phb-mode"><button data-act="phb-mode" data-v="name" aria-pressed="' + (s.mode !== 'order') + '"><b>จับคู่จากชื่อไฟล์</b><span>' + (s.who === 'user' ? 'ชื่อไฟล์มีชื่อผู้ใช้ หรือชื่อ-นามสกุล เช่น krubank.jpg' : 'ชื่อไฟล์มีเลขประจำตัว หรือชื่อ-นามสกุล เช่น 12345.jpg') + '</span></button>' +
+      (s.who === 'user' ? '' : '<button data-act="phb-mode" data-v="order" aria-pressed="' + (s.mode === 'order') + '"><b>เรียงตามเลขที่</b><span>เรียงไฟล์ตามชื่อ แล้วใส่ให้เลขที่ 1, 2, 3 ... ของห้องที่เลือก</span></button>') + '</div>';
+    if (s.mode === 'order') {
+      var cl = []; people.forEach(function (p) { if (cl.indexOf(p.cls) < 0) cl.push(p.cls); }); cl.sort();
+      if (!s.cls && cl.length) s.cls = cl[0];
+      h += '<div class="chips" style="padding:0 0 10px">' + cl.map(function (c) { return '<button class="fchip" data-act="phb-cls" data-v="' + esc(c) + '" aria-pressed="' + (s.cls === c) + '">' + esc(c) + '</button>'; }).join('') + '</div>';
+    }
+    h += '<div class="imp-drop" id="phbDrop"><button class="btn btn-primary" data-act="phb-pick">' + ic('image', 20) + (s.items.length ? 'เพิ่มรูปอีก' : 'เลือกรูปหลายไฟล์') + '</button><small>หรือลากรูปหลายไฟล์มาวางตรงนี้ · รองรับ JPG PNG WEBP HEIC ที่เบราว์เซอร์เปิดได้</small></div>';
+    if (s.reading) h += twLoad(s.reading);
+    if (s.items.length) {
+      var ok = s.items.filter(function (it) { return it.to && !it.dup; }).length;
+      h += '<div class="imp-sum" style="margin-top:12px"><div><b>' + s.items.length + '</b><span>รูปที่เลือก</span></div><div><b>' + ok + '</b><span>จับคู่ได้</span></div><div><b>' + (s.items.length - ok) + '</b><span>ยังไม่มีเจ้าของ</span></div></div>';
+      var opts = people.slice().sort(function (a, b) { return a.cls === b.cls ? (+a.no || 0) - (+b.no || 0) : (a.cls < b.cls ? -1 : 1); });
+      h += '<div class="phb-grid">' + s.items.map(function (it, i) {
+        var p = byId[it.to], st = !it.to ? 'bad' : (it.dup ? 'warn' : 'ok');
+        return '<div class="phb-i ' + st + '"><div class="phb-img"><img src="' + esc(it.data) + '" alt=""><button class="phb-x" data-act="phb-del" data-i="' + i + '" aria-label="เอารูปนี้ออก">' + ic('x', 14) + '</button></div>' +
+          '<div class="phb-n" title="' + esc(it.name) + '">' + esc(it.name) + '</div>' +
+          '<select class="phb-sel" data-phb="' + i + '"><option value="">— เลือกเจ้าของรูป —</option>' + opts.map(function (o) {
+            return '<option value="' + esc(o.id) + '"' + (o.id === it.to ? ' selected' : '') + '>' + esc((o.cls ? o.cls + ' ' + (o.no || '') + ' ' : '') + o.name) + '</option>';
+          }).join('') + '</select>' +
+          '<div class="phb-st">' + (st === 'ok' ? ic('check', 14) + (p.pv ? 'แทนรูปเดิม' : 'พร้อม') : (st === 'warn' ? ic('alert', 14) + 'ซ้ำกับรูปอื่น' : ic('alert', 14) + 'ยังไม่ได้จับคู่')) + '</div></div>';
+      }).join('') + '</div>';
+      h += '<div id="formErr" class="err" role="alert"></div><button class="btn btn-primary btn-block" data-act="phb-run"' + (ok ? '' : ' disabled') + '>' + ic('send', 20) + 'อัปโหลด ' + ok + ' รูป</button>';
+      h += '<button class="btn btn-ghost btn-block" data-act="phb-clear" style="margin-top:8px">ล้างรายการ</button>';
+    }
+    return h;
+  }
+  function phbAddFiles(files) {
+    var s = S.sheet; if (!s || s.kind !== 'phbulk' || !files || !files.length) return;
+    var list = []; for (var i = 0; i < files.length; i++) if (/^image\//.test(files[i].type) || /\.(jpe?g|png|webp|heic)$/i.test(files[i].name)) list.push(files[i]);
+    if (!list.length) { toast('เลือกไฟล์รูปภาพ', 'warning'); return; }
+    if (s.items.length + list.length > 300) { toast('ครั้งละไม่เกิน 300 รูป', 'warning'); list = list.slice(0, 300 - s.items.length); }
+    var k = 0, bad = 0;
+    var next = function () {
+      if (S.sheet !== s) return;
+      if (k >= list.length) {
+        s.reading = null; phRematch(); renderSheet();
+        if (bad) toast('เปิดไม่ได้ ' + bad + ' ไฟล์', 'warning');
+        return;
+      }
+      var f = list[k++];
+      s.reading = 'กำลังย่อรูป ' + k + ' / ' + list.length; var rd = document.querySelector('.sheet .tw-py-10 span'); if (rd) rd.textContent = s.reading; else renderSheet();
+      processStudentPhoto(f).then(function (d) { s.items.push({ name: f.name, data: d, to: '', manual: false }); })
+        .catch(function () { bad++; }).then(function () { setTimeout(next, 0); });
+    };
+    next();
+  }
+  function phbRun() {
+    var s = S.sheet, todo = s.items.filter(function (it) { return it.to && !it.dup; });
+    if (!todo.length) return;
+    s.busy = 'กำลังอัปโหลดรูป'; s.done = 0; s.total = todo.length; renderSheet();
+    var i = 0, fails = 0, BATCH = 8;
+    var step = function () {
+      if (i >= todo.length) {
+        s.busy = null; haptic();
+        s.items = s.items.filter(function (it) { return todo.indexOf(it) < 0 || it.fail; });
+        renderSheet(); render();
+        successBox('อัปโหลดรูปแล้ว ' + (todo.length - fails) + ' รูป', fails ? 'ไม่สำเร็จ ' + fails + ' รูป ลองกดอัปโหลดอีกครั้ง' : 'รูปจะแสดงในรายชื่อทันที');
+        return;
+      }
+      var part = todo.slice(i, i + BATCH); i += BATCH;
+      API.call('savePhotos', { items: part.map(function (it) { return { id: it.to, data: it.data }; }) }).then(function (d) {
+        var vers = d.vers || {};
+        part.forEach(function (it) {
+          var v = vers[it.to]; if (v === undefined) return;
+          phSet(it.to, it.data, v); it.fail = false;
+          (S.adm.students || []).forEach(function (x) { if (x.id === it.to) x.photoVer = v; });
+          (S.adm.users || []).forEach(function (x) { if (x.id === it.to) x.photoVer = v; });
+          (S.students || []).forEach(function (x) { if (x.id === it.to) x.pv = v; });
+          S.cases.forEach(function (c) { if (c.sid === it.to) c.pv = v; });
+          if (S.user.id === it.to) S.user.photoVer = v;
+        });
+        saveCache();
+      }).catch(function (e) { fails += part.length; part.forEach(function (it) { it.fail = true; }); var fe = $('formErr'); if (fe) fe.textContent = e.message || ''; })
+        .then(function () { s.done = Math.min(i, todo.length); renderSheet(); step(); });
+    };
+    step();
+  }
+
   /* ---------- admin ---------- */
   var PREFIX_STAFF = [['นาย', 'นาย'], ['นาง', 'นาง'], ['นางสาว', 'นางสาว']];
   var PREFIX_STU = [['ด.ช.', 'ด.ช.'], ['ด.ญ.', 'ด.ญ.'], ['นาย', 'นาย'], ['นางสาว', 'นางสาว']];
@@ -2145,6 +2295,7 @@
     openSheet({
       kind: 'form', form: 'user', title: u ? 'แก้ไขบัญชี' : 'เพิ่มครูหรือเจ้าหน้าที่', sub: u ? u.username : 'ระบบสร้างรหัสผ่านชั่วคราวให้หลังบันทึก',
       readonly: !isAdmin(),
+      top: u ? photoBlock({ id: u.id, photoVer: u.photoVer, role: u.role }) : '',
       values: u ? { id: u.id, username: u.username, role: u.role, prefix: u.prefix, firstName: u.firstName, lastName: u.lastName, department: u.department, advisorClass: u.advisorClass, active: u.active }
         : { role: 'teacher', prefix: 'นาย', active: true },
       fields: [
@@ -2617,11 +2768,12 @@
     var h = header('ครูและเจ้าหน้าที่', list ? list.length + ' บัญชี' : '', '', true) + '<main class="main">';
     if (!list) return h + loadingHtml() + '</main>';
     h += '<div class="group">' + (list.length ? list.map(function (u) {
-      return '<button class="row" data-act="adm-user-edit" data-id="' + esc(u.id) + '">' + avatarHtml(u.id, u.firstName) + '<span class="row-main"><span class="row-t">' + esc(u.name) + '</span>' +
+      return '<button class="row" data-act="adm-user-edit" data-id="' + esc(u.id) + '">' + avatarHtml(u.id, u.firstName, u.photoVer) + '<span class="row-main"><span class="row-t">' + esc(u.name) + '</span>' +
         '<span class="row-s">' + esc(u.username) + (u.advisorClass ? ' ที่ปรึกษา ' + esc(u.advisorClass) : '') + '</span><span class="row-s"><span class="chip ch-info">' + roleName(u.role) + '</span>' +
         (u.active ? '' : '<span class="chip ch-bad">ปิดใช้งาน</span>') + (u.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '') + '</span></span><span class="chev">' + ic('chev', 20) + '</span></button>';
     }).join('') : '<div class="empty">ยังไม่มีบัญชี</div>') + '</div></main>';
     if (isAdmin()) h += '<button class="fab no-print" data-act="adm-user-new">' + ic('plus') + 'เพิ่มครู</button>';
+    if (isAdmin() && list.length) h = h.replace('<main class="main">', '<main class="main"><div class="ev-add" style="margin:0 0 12px"><button class="btn btn-ghost" data-act="phb-open" data-v="user">' + ic('camera', 20) + 'อัปโหลดรูปครูหลายคน</button></div>');
     return h;
   }
   function admFiltered() {
@@ -2705,7 +2857,8 @@
     h += '<div class="chips" style="padding-top:6px">' + [['all', 'ทุกสถานะ'], ['normal', 'ติดตามปกติ'], ['SUSPENDED', 'แขวน ' + cnt.SUSPENDED], ['WITHDRAWN', 'ถอนชื่อ ' + cnt.WITHDRAWN]].map(function (x) {
       return '<button class="fchip" data-act="astat" data-v="' + x[0] + '" aria-pressed="' + ((S.astat || 'all') === x[0]) + '">' + x[1] + '</button>';
     }).join('') + '</div>';
-    if (isManager()) h += '<div class="ev-add" style="margin-top:12px"><button class="btn btn-ghost" data-act="adm-stu-new">' + ic('plus', 20) + 'เพิ่มทีละคน</button><button class="btn btn-ghost" data-act="adm-import">' + ic('file', 20) + 'นำเข้า Excel / PDF</button></div>';
+    if (isManager()) h += '<div class="ev-add ev-3" style="margin-top:12px"><button class="btn btn-ghost" data-act="adm-stu-new">' + ic('plus', 20) + 'เพิ่มทีละคน</button><button class="btn btn-ghost" data-act="adm-import">' + ic('file', 20) + 'นำเข้า Excel / PDF</button><button class="btn btn-ghost" data-act="phb-open" data-v="stu">' + ic('camera', 20) + 'อัปโหลดรูปหลายคน</button></div>';
+    else if (S.user.role === 'teacher' && S.user.advisorClass) h += '<div class="ev-add" style="margin-top:12px"><button class="btn btn-ghost" data-act="phb-open" data-v="stu">' + ic('camera', 20) + 'อัปโหลดรูปนักเรียนทั้งห้อง</button></div>';
     else h += '<p class="hint" style="margin:12px 2px 0">แตะชื่อนักเรียนเพื่อรีเซ็ตรหัสผ่านเมื่อนักเรียนลืม</p>';
     return h + '<div id="alist" style="margin-top:14px">' + admStudentRows() + '</div></main>';
   }
@@ -3173,6 +3326,17 @@
           loaded(); closeSheet(); successBox('บันทึกประวัติผู้พัฒนาแล้ว', 'ผู้เข้าชมหน้าแรกจะเห็นข้อมูลใหม่ภายใน 5 นาที');
         }).catch(function (err) { loaded(); toast(err.message || 'บันทึกไม่สำเร็จ'); });
         break;
+      case 'phb-open':
+        openSheet({ kind: 'phbulk', who: v === 'user' ? 'user' : 'stu', mode: 'name', cls: S.acls !== 'all' ? S.acls : '', items: [] });
+        if (v === 'user' && !S.adm.users) loadAdm('users', true);
+        if (v !== 'user' && !S.adm.students) loadAdm('students', true);
+        break;
+      case 'phb-mode': s.mode = v; s.items.forEach(function (it) { it.manual = false; }); phRematch(); renderSheet(); break;
+      case 'phb-cls': s.cls = v; phRematch(); renderSheet(); break;
+      case 'phb-pick': var fpb = $('fPhb'); fpb.value = ''; fpb.click(); break;
+      case 'phb-del': s.items.splice(+el.getAttribute('data-i'), 1); phRematch(); renderSheet(); break;
+      case 'phb-clear': s.items = []; renderSheet(); break;
+      case 'phb-run': phbRun(); break;
       case 'dp-eye': s.show = !s.show; renderSheet(); break;
       case 'dp-apply': s.form.apply = v; renderSheet(); break;
       case 'dp-target': s.form.target = v; renderSheet(); break;
@@ -3514,6 +3678,11 @@
   document.addEventListener('input', function (e) {
     var t = e.target;
     if (t.getAttribute && t.getAttribute('data-dev') && S.sheet && S.sheet.kind === 'dev' && S.sheet.form) { S.sheet.form[t.getAttribute('data-dev')] = t.value; return; }
+    if (t.getAttribute && t.getAttribute('data-phb') !== null && S.sheet && S.sheet.kind === 'phbulk') {
+      var pit = S.sheet.items[+t.getAttribute('data-phb')];
+      if (pit) { pit.to = t.value; pit.manual = true; phRematch(); renderSheet(); }
+      return;
+    }
     if (t.getAttribute && t.getAttribute('data-dp') && S.sheet && S.sheet.kind === 'defpw') { S.sheet.form[t.getAttribute('data-dp')] = t.value; return; }
     if (t.id === 'gsq') { S.gsq = t.value; flipRender($('gsres'), gsResults(t.value)); return; }
     if (t.id === 'q') { S.q = t.value; flipRender($('slist'), studentListHtml()); return; }
