@@ -241,7 +241,7 @@
 
   document.addEventListener('click', function (e) {
     if (!e.target.closest) return;
-    if (e.target.id === 'devModal') { closeDev(); return; }
+    if (e.target.id === 'devModal') { shakeDev(); return; } // ล็อก: ปิดได้ด้วยปุ่ม ✕ เท่านั้น
     var el = e.target.closest('[data-act]');
     if (!el) return;
     var a = el.getAttribute('data-act');
@@ -249,7 +249,11 @@
     else if (a === 'dev') openDev();
     else if (a === 'dev-close') closeDev();
   });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDev(); });
+  function shakeDev() {
+    var c = document.querySelector('.dv-card'); if (!c) return;
+    c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake');
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('devModal') && $('devModal').innerHTML) shakeDev(); });
   var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
   try { var th = localStorage.getItem('followup_theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (e) {}
   if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (DATA) render(); });
