@@ -570,13 +570,13 @@
       h += '<div class="pop-sec">นักเรียน <small>' + stu.length + '</small></div>' + stu.slice(0, 6).map(function (s) {
         var sub = gsMark(s.cls, toks) + (s.no ? ' เลขที่ ' + esc(s.no) : '') + ' · ' + gsMark(s.sid, toks);
         var tag = s.hold ? '<span class="chip ch-hold">แขวน</span>' : (s.open ? '<span class="chip ch-warn">ค้าง ' + s.open + '</span>' : (s.total ? '<span class="chip ch-ok">แก้ครบ</span>' : ''));
-        return '<button class="pn gs-r" data-act="gs-stu" data-v="' + esc(s.sid) + '">' + avatarHtml(s.sid, s.name, s.pv) +
+        return '<button class="pn gs-r" data-k="s' + esc(s.sid) + '" data-act="gs-stu" data-v="' + esc(s.sid) + '">' + avatarHtml(s.sid, s.name, s.pv) +
           '<span class="pn-b"><b>' + gsMark(s.name, toks) + '</b><span>' + sub + '</span></span>' + tag + '</button>';
       }).join('') + (stu.length > 6 ? '<div class="gs-more">และอีก ' + (stu.length - 6) + ' คน พิมพ์ให้เจาะจงขึ้น</div>' : '');
     }
     if (cs.length) {
       h += '<div class="pop-sec">รายการ 0 ร มส <small>' + cs.length + '</small></div>' + cs.slice(0, 8).map(function (c) {
-        return '<button class="pn gs-r" data-act="gs-case" data-id="' + esc(c.id) + '"><span class="gs-stamp">' + typeStamp(c.type) + '</span>' +
+        return '<button class="pn gs-r" data-k="c' + esc(c.id) + '" data-act="gs-case" data-id="' + esc(c.id) + '"><span class="gs-stamp">' + typeStamp(c.type) + '</span>' +
           '<span class="pn-b"><b>' + gsMark(c.subjectName, toks) + ' · ' + gsMark(c.studentName, toks) + '</b><span>' + gsMark(c.classroom || '', toks) + ' · ' + gsMark(c.teacherName || '', toks) + '</span></span>' + chip(c) + '</button>';
       }).join('') + (cs.length > 8 ? '<div class="gs-more">และอีก ' + (cs.length - 8) + ' รายการ</div>' : '');
     }
@@ -835,7 +835,7 @@
     if (!order.length) return '<div class="group"><div class="empty">' + (S.cases.length ? 'ไม่พบนักเรียนตามเงื่อนไขนี้ ลองเลือก ทั้งหมด หรือพิมพ์ชื่อใหม่' : 'ยังไม่มีนักเรียนที่ติด 0 ร มส กดปุ่มบันทึกด้านล่างเพื่อเริ่ม') + '</div></div>';
     return '<div class="group cols">' + order.map(function (sid) {
       var list = groups[sid], s = list[0], open = list.filter(isOpen), late = list.filter(isOverdue).length;
-      return '<button class="row" data-act="open-student" data-v="' + esc(sid) + '">' + avatarHtml(sid, s.firstName || s.studentName, s.pv) + '<span class="row-main"><span class="row-t">' + esc(s.studentName) + '</span>' +
+      return '<button class="row" data-k="' + esc(sid) + '" data-act="open-student" data-v="' + esc(sid) + '">' + avatarHtml(sid, s.firstName || s.studentName, s.pv) + '<span class="row-main"><span class="row-t">' + esc(s.studentName) + '</span>' +
         '<span class="row-s">' + esc(s.classroom) + ' เลขที่ ' + esc(s.number) + '</span><span class="row-s">' + (open.length ? '<span class="chip ch-warn">ค้าง ' + open.length + ' วิชา</span>' : '<span class="chip ch-ok">แก้ครบแล้ว</span>') + (late ? '<span class="chip ch-bad">เลยกำหนด ' + late + '</span>' : '') + '</span></span>' +
         '<span class="stack">' + open.slice(0, 3).map(function (c) { return stamp(c); }).join('') + '</span></button>';
     }).join('') + '</div>';
@@ -1229,6 +1229,7 @@
     else if (k === 'line') inner = shLine();
     else if (k === 'linestatus') inner = shLineStatus();
     else if (k === 'backup') inner = shBackup();
+    else if (k === 'defpw') inner = shDefPw();
     else if (k === 'dev') inner = shDev();
     else if (k === 'report-config') inner = shReportCfg();
     else if (k === 'logo') inner = shLogo();
@@ -1427,18 +1428,78 @@
     var list = S.subjects.filter(function (s) { return !lv || !s.level || s.level === lv; });
     return list.length ? list : S.subjects;
   }
-  function stuResults(q) {
-    if (!S.students) return '<div class="soon" style="padding:18px"><span class="spin"></span><span>กำลังโหลดรายชื่อนักเรียน</span></div>';
-    q = (q || '').trim().toLowerCase();
+  /* ---------- แสดงผลแบบลื่นไหล: รายการที่ค้นหาค่อยๆ เลื่อนเข้าที่ (FLIP) ---------- */
+  var RM = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function flipRender(el, html) {
+    if (!el) return;
+    var canAnim = !RM && typeof el.animate === 'function', old = {};
+    if (canAnim) {
+      var a = el.querySelectorAll('[data-k]');
+      for (var i = 0; i < a.length; i++) old[a[i].getAttribute('data-k')] = a[i].getBoundingClientRect();
+    }
+    el.innerHTML = html;
+    if (!canAnim) return;
+    var b = el.querySelectorAll('[data-k]'), vh = window.innerHeight, n = 0;
+    for (var j = 0; j < b.length; j++) {
+      var e = b[j], k = e.getAttribute('data-k'), nr = e.getBoundingClientRect();
+      if (nr.top > vh + 80 || nr.bottom < -80) continue; // นอกจอไม่ต้องเล่นเอฟเฟค
+      var o = old[k];
+      if (o) {
+        var dx = o.left - nr.left, dy = o.top - nr.top;
+        if (Math.abs(dx) > 1 || Math.abs(dy) > 1) e.animate([{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      } else {
+        e.animate([{ opacity: 0, transform: 'translateY(16px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 360, delay: Math.min(n++ * 28, 320), easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
+      }
+    }
+  }
+
+  /* ---------- เลือกนักเรียน: แสดงทุกคน แยกตามห้อง พิมพ์แล้วคนที่ตรงเลื่อนขึ้นมา ---------- */
+  function stuClasses() {
+    var out = [];
+    (S.students || []).forEach(function (x) { if (out.indexOf(x.cls) < 0) out.push(x.cls); });
     var adv = S.user.advisorClass;
-    var list = S.students.filter(function (s) {
-      if (!q) return adv ? s.cls === adv : false;
-      return (s.name + ' ' + s.id + ' ' + s.cls).toLowerCase().indexOf(q) >= 0;
-    }).slice(0, 8);
-    if (!list.length) return '<div class="empty">' + (q ? 'ไม่พบนักเรียน ลองพิมพ์ชื่อจริง เลขประจำตัว หรือห้อง เช่น ม.2/1' : 'พิมพ์ชื่อ เลขประจำตัว หรือห้องเพื่อค้นหา') + '</div>';
-    return (!q && adv ? '<div class="row-s" style="padding:8px 14px 0">นักเรียนห้องที่ปรึกษา ' + esc(adv) + '</div>' : '') + list.map(function (s) {
-      return '<button class="row" data-act="new-pick-stu" data-v="' + esc(s.id) + '"><span class="row-main"><span class="row-t">' + esc(s.name) + '</span><span class="row-s">' + esc(s.cls) + ' เลขที่ ' + esc(s.no) + ' เลขประจำตัว ' + esc(s.id) + '</span></span>' + ic('plus', 20) + '</button>';
+    return out.sort(function (a, b) { return a === adv ? -1 : (b === adv ? 1 : (a < b ? -1 : 1)); });
+  }
+  function stuChips() {
+    var s = S.sheet, cur = s.scls || 'all', cls = stuClasses(), adv = S.user.advisorClass;
+    if (cls.length < 2) return '';
+    return [['all', 'ทุกห้อง (' + (S.students || []).length + ')']].concat(cls.map(function (c) {
+      return [c, c + (c === adv ? ' ★' : '')];
+    })).map(function (x) {
+      return '<button class="fchip" data-act="stu-cls" data-v="' + esc(x[0]) + '" aria-pressed="' + (cur === x[0]) + '">' + esc(x[1]) + '</button>';
     }).join('');
+  }
+  function stuRow(x, toks) {
+    return '<button class="row stu-pick" data-k="' + esc(x.id) + '" data-act="new-pick-stu" data-v="' + esc(x.id) + '">' + avatarHtml(x.id, x.firstName || x.name, x.pv) +
+      '<span class="row-main"><span class="row-t">' + (toks ? gsMark(x.name, toks) : esc(x.name)) + '</span><span class="row-s">' + (toks ? gsMark(x.cls, toks) : esc(x.cls)) + ' เลขที่ ' + esc(x.no) + ' · ' + (toks ? gsMark(x.id, toks) : esc(x.id)) + '</span></span>' +
+      '<span class="pick-ic">' + ic('plus', 18) + '</span></button>';
+  }
+  function stuResults(q) {
+    if (!S.students) return twLoad('กำลังโหลดรายชื่อนักเรียน');
+    var s = S.sheet || {}, cur = s.scls || 'all', adv = S.user.advisorClass;
+    var toks = gsNorm(q || '').trim().split(' ').filter(function (x) { return x; });
+    var base = S.students.filter(function (x) { return cur === 'all' || x.cls === cur; });
+    if (toks.length) {
+      var hits = base.filter(function (x) { return gsHit(x.name + ' ' + x.id + ' ' + x.cls + ' เลขที่' + x.no, toks); });
+      var t0 = toks[0];
+      var score = function (x) {
+        var nm = gsNorm(x.name).replace(/^(ด\.ช\.|ด\.ญ\.|นางสาว|นาย|นาง)/, '');
+        return (nm.indexOf(t0) === 0 ? 0 : (String(x.id).indexOf(t0) === 0 ? 1 : 2)) * 10 + (x.cls === adv ? 0 : 1);
+      };
+      hits.sort(function (a, b) { return score(a) - score(b) || (a.cls < b.cls ? -1 : (a.cls > b.cls ? 1 : (+a.no || 0) - (+b.no || 0))); });
+      if (!hits.length) return '<div class="empty" data-k="none">ไม่พบ "' + esc(q.trim()) + '"' + (cur !== 'all' ? ' ในห้อง ' + esc(cur) + ' ลองเลือก ทุกห้อง' : ' ลองพิมพ์ชื่อจริง เลขประจำตัว หรือห้อง') + '</div>';
+      return '<div class="stu-head" data-k="h:found">พบ ' + hits.length + ' คน<span>เรียงคนที่ตรงที่สุดไว้บนสุด</span></div>' + hits.slice(0, 200).map(function (x) { return stuRow(x, toks); }).join('') +
+        (hits.length > 200 ? '<div class="row-s" style="padding:10px 14px">แสดง 200 คนแรก พิมพ์ให้เจาะจงขึ้น</div>' : '');
+    }
+    var groups = {}, order = stuClasses().filter(function (c) { return cur === 'all' || c === cur; });
+    base.forEach(function (x) { (groups[x.cls] = groups[x.cls] || []).push(x); });
+    var h = '';
+    order.forEach(function (c) {
+      var g = (groups[c] || []).sort(function (a, b) { return (+a.no || 0) - (+b.no || 0); });
+      if (!g.length) return;
+      h += '<div class="stu-head" data-k="h:' + esc(c) + '">' + esc(c) + (c === adv ? ' · ห้องที่ปรึกษา' : '') + '<span>' + g.length + ' คน</span></div>' + g.map(function (x) { return stuRow(x, null); }).join('');
+    });
+    return h || '<div class="empty">ยังไม่มีรายชื่อนักเรียน</div>';
   }
   function msWarn(v) {
     var n = parseFloat(v);
@@ -1467,7 +1528,8 @@
       h += '<label class="field"><span class="lbl">ต้องแก้ให้เสร็จภายใน</span><input class="inp" type="date" data-k="due" min="' + ymd(now()) + '" value="' + esc(s.due) + '"></label>';
       h += '<div id="newErr" class="err" role="alert"></div><button class="btn btn-primary btn-block" data-act="new-save">บันทึกและแจ้งนักเรียน</button>';
     } else {
-      h += '<input class="inp" id="sq" placeholder="พิมพ์ชื่อ เลขประจำตัว หรือห้อง" autocomplete="off" value="' + esc(s.sq || '') + '"><div id="sres" class="sres">' + stuResults(s.sq) + '</div></div>';
+      h += '<label class="search stu-search">' + ic('search', 20) + '<input id="sq" type="search" placeholder="พิมพ์ชื่อ เลขประจำตัว หรือห้อง เพื่อกรอง" autocomplete="off" value="' + esc(s.sq || '') + '"></label>' +
+        '<div id="scls" class="chips stu-chips">' + (S.students ? stuChips() : '') + '</div><div id="sres" class="sres">' + stuResults(s.sq) + '</div></div>';
     }
     return h;
   }
@@ -1475,7 +1537,8 @@
     if (S.students && now() - S.studentsAt < 300000) return;
     API.call('listStudents').then(function (list) {
       S.students = list; S.studentsAt = now();
-      if (S.sheet && S.sheet.kind === 'new') renderSheet();
+      if (S.sheet && S.sheet.kind === 'new' && !S.sheet.sid) { var sc = $('scls'); if (sc) sc.innerHTML = stuChips(); flipRender($('sres'), stuResults(S.sheet.sq)); }
+      else if (S.sheet && S.sheet.kind === 'new') renderSheet();
       if (S.pop === 'search' && $('gsres')) $('gsres').innerHTML = gsResults(S.gsq || '');
       var tv = S.stack[S.stack.length - 1]; if (tv && tv.v === 'sum') renderMain();
     }).catch(function (e) { toast(e.message || 'โหลดรายชื่อนักเรียนไม่สำเร็จ'); });
@@ -1955,6 +2018,31 @@
       img.src = url;
     });
   }
+  function shDefPw() {
+    var s = S.sheet, d = s.data, h = '<h3 class="sh-t">รหัสผ่านเริ่มต้น</h3><p class="sh-s">กำหนดรหัสเดียวกันให้ทุกคน ใช้เข้าระบบครั้งแรก แล้วระบบจะบังคับให้ตั้งรหัสใหม่ของตัวเอง</p>';
+    if (!d) return h + twLoad('กำลังโหลด');
+    var f = s.form, st = d.stats, show = !!s.show;
+    var inp = function (k, label, ph, hint) {
+      return '<label class="field"><span class="lbl">' + label + '</span><span class="pw-wrap"><input class="inp" data-dp="' + k + '" type="' + (show ? 'text' : 'password') + '" autocomplete="off" maxlength="30" value="' + esc(f[k] || '') + '" placeholder="' + esc(ph) + '">' +
+        '<button type="button" class="pw-eye" data-act="dp-eye" aria-label="แสดงรหัส">' + ic(show ? 'eyeoff' : 'eye', 20) + '</button></span></label>' + (hint ? '<p class="hint" style="margin:-6px 2px 12px">' + hint + '</p>' : '');
+    };
+    h += '<div class="dp-stats"><div><b>' + st.students + '</b><span>นักเรียน</span><small>ยังไม่ตั้งรหัสเอง ' + st.studentsUnset + '</small></div><div><b>' + st.staff + '</b><span>ครูและเจ้าหน้าที่</span><small>ยังไม่ตั้งรหัสเอง ' + st.staffUnset + '</small></div></div>';
+    h += inp('student', 'รหัสเริ่มต้นของนักเรียน', 'เว้นว่าง = ใช้เลขประจำตัวของแต่ละคน', 'ว่างไว้ = นักเรียนใช้เลขประจำตัวเป็นรหัสครั้งแรก (แบบเดิม)');
+    h += inp('staff', 'รหัสเริ่มต้นของครูและเจ้าหน้าที่', 'เช่น kru2569', 'ไม่รวมบัญชีผู้ดูแลระบบ');
+    h += '<span class="lbl">ใช้กับบัญชีที่มีอยู่แล้ว</span><div class="dp-opts">' + [
+      ['none', 'เก็บค่าไว้อย่างเดียว', 'ใช้กับบัญชีใหม่ การนำเข้า และการรีเซ็ตรหัสครั้งต่อไป'],
+      ['unset', 'เฉพาะคนที่ยังไม่ตั้งรหัสเอง', 'คนที่ตั้งรหัสของตัวเองแล้วไม่ถูกเปลี่ยน (แนะนำ)'],
+      ['all', 'รีเซ็ตทุกคน', 'ทุกคนต้องเข้าด้วยรหัสเริ่มต้นแล้วตั้งรหัสใหม่']
+    ].map(function (o) {
+      return '<button class="dp-o' + (o[0] === 'all' ? ' bad' : '') + '" data-act="dp-apply" data-v="' + o[0] + '" aria-pressed="' + (f.apply === o[0]) + '"><i></i><span><b>' + o[1] + '</b><small>' + o[2] + '</small></span></button>';
+    }).join('') + '</div>';
+    if (f.apply !== 'none') h += '<span class="lbl">กลุ่มที่ใช้</span><div class="opts" style="margin-bottom:14px">' + [['both', 'นักเรียนและครู'], ['students', 'เฉพาะนักเรียน'], ['staff', 'เฉพาะครู']].map(function (o) {
+      return '<button class="fchip" data-act="dp-target" data-v="' + o[0] + '" aria-pressed="' + (f.target === o[0]) + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+    h += '<div id="formErr" class="err" role="alert"></div><button class="btn ' + (f.apply === 'all' ? 'btn-bad' : 'btn-primary') + ' btn-block" data-act="dp-save">' + ic('lock', 20) + (f.apply === 'none' ? 'บันทึกรหัสเริ่มต้น' : (f.apply === 'all' ? 'บันทึกและรีเซ็ตรหัสทุกคน' : 'บันทึกและใช้กับคนที่ยังไม่ตั้งรหัส')) + '</button>';
+    h += '<p class="hint" style="margin-top:10px">รหัสเริ่มต้นเก็บในชีต Settings ของ Google Sheet (เฉพาะผู้ดูแลระบบเห็น) แจ้งรหัสนี้ให้ครูและนักเรียนทราบเอง</p>';
+    return h;
+  }
   function bkCall(action, payload, busy, ok) {
     var sh = S.sheet; if (!sh || sh.busy) return;
     sh.busy = busy; renderSheet();
@@ -2075,7 +2163,7 @@
   function studentForm(st) {
     var canEdit = isManager();
     openSheet({
-      kind: 'form', form: 'student', title: st ? st.name : 'เพิ่มนักเรียน', sub: st ? st.classroom + ' เลขที่ ' + st.number : 'รหัสผ่านเริ่มต้นคือเลขประจำตัว',
+      kind: 'form', form: 'student', title: st ? st.name : 'เพิ่มนักเรียน', sub: st ? st.classroom + ' เลขที่ ' + st.number : 'ใช้รหัสผ่านเริ่มต้นของโรงเรียน (ไม่ได้กำหนด = เลขประจำตัว)',
       readonly: !canEdit,
       values: st ? { isNew: false, studentId: st.id, prefix: st.prefix, firstName: st.firstName, lastName: st.lastName, classroom: st.classroom, number: st.number, parentName: st.parentName, parentPhone: st.parentPhone, active: st.active }
         : { isNew: true, prefix: 'ด.ช.', active: true, classroom: S.acls !== 'all' ? S.acls : '' },
@@ -2419,7 +2507,7 @@
       '<label class="field" style="margin-top:12px"><span class="lbl">ห้องเริ่มต้น (ใช้กับคนที่ในไฟล์ไม่มีห้อง)</span><input class="inp" id="impCls" placeholder="เช่น ม.2/1" value="' + esc(sh.defCls || '') + '"></label>' +
       '<details class="imp-raw"' + (sh.txt ? '' : ' open') + '><summary>ข้อมูลที่จะนำเข้า (แก้ไขได้)</summary><div class="cols-hint">เลขประจำตัว | คำนำหน้า | ชื่อ | นามสกุล | ห้อง | เลขที่ | ชื่อผู้ปกครอง | เบอร์โทร</div>' +
       '<textarea class="inp" id="importTxt" style="min-height:140px;font-size:13.5px" placeholder="วางจาก Excel ได้ทั้งแบบมีหัวตารางหรือไม่มี เช่น&#10;เลขที่	เลขประจำตัว	ชื่อ-สกุล&#10;1	12345	ด.ช.ภูมิ ใจกล้า">' + esc(sh.txt || '') + '</textarea></details>' +
-      '<div id="importPrev">' + importPreview() + '</div><p class="hint">คนที่มีเลขประจำตัวอยู่แล้วจะอัปเดตข้อมูล ไม่เปลี่ยนรหัสผ่าน คนใหม่ใช้เลขประจำตัวเป็นรหัสผ่านเริ่มต้น</p>' +
+      '<div id="importPrev">' + importPreview() + '</div><p class="hint">คนที่มีเลขประจำตัวอยู่แล้วจะอัปเดตข้อมูล ไม่เปลี่ยนรหัสผ่าน คนใหม่ใช้รหัสผ่านเริ่มต้นของโรงเรียน (ถ้ายังไม่ได้กำหนด = เลขประจำตัว)</p>' +
       '<div id="formErr" class="err" role="alert"></div><button class="btn btn-primary btn-block" data-act="import-run"' + (sh.reading ? ' disabled' : '') + '>นำเข้า</button>';
   }
   function impRefresh() { var ip = $('importPrev'); if (ip) ip.innerHTML = importPreview(); }
@@ -2569,9 +2657,9 @@
         '<span class="row-s">' + esc(s.classroom) + ' เลขที่ ' + esc(s.number) + ' เลขประจำตัว ' + esc(s.id) + '</span><span class="row-s">' +
         (s.trackStatus === 'SUSPENDED' ? '<span class="chip ch-hold">แขวนการติดตาม</span>' : (s.trackStatus === 'WITHDRAWN' ? '<span class="chip ch-bad">ถอนชื่อ</span>' : (s.active ? '' : '<span class="chip ch-bad">ปิดบัญชี</span>'))) + (s.mustChangePw ? '<span class="chip ch-warn">ยังไม่ตั้งรหัส</span>' : '<span class="chip ch-ok">ตั้งรหัสแล้ว</span>') +
         (s.lineLinked ? '<span class="chip ch-ok">LINE</span>' : '') + '</span></span>';
-      if (sel) return '<button class="row' + (on ? ' sel' : '') + '" data-act="asel-t" data-id="' + esc(s.id) + '" aria-pressed="' + !!on + '">' + inner + '</button>';
-      var row = '<button class="row" data-act="adm-stu-edit" data-id="' + esc(s.id) + '">' + inner + '<span class="chev">' + ic('chev', 20) + '</span></button>';
-      return adm ? '<div class="row-split">' + row + '<button class="del-ic" data-act="stu-delete" data-id="' + esc(s.id) + '" aria-label="ลบ ' + esc(s.name) + '" title="ลบนักเรียนคนนี้">' + ic('trash', 18) + '</button></div>' : row;
+      if (sel) return '<button class="row' + (on ? ' sel' : '') + '" data-k="' + esc(s.id) + '" data-act="asel-t" data-id="' + esc(s.id) + '" aria-pressed="' + !!on + '">' + inner + '</button>';
+      var row = '<button class="row"' + (adm ? '' : ' data-k="' + esc(s.id) + '"') + ' data-act="adm-stu-edit" data-id="' + esc(s.id) + '">' + inner + '<span class="chev">' + ic('chev', 20) + '</span></button>';
+      return adm ? '<div class="row-split" data-k="' + esc(s.id) + '">' + row + '<button class="del-ic" data-act="stu-delete" data-id="' + esc(s.id) + '" aria-label="ลบ ' + esc(s.name) + '" title="ลบนักเรียนคนนี้">' + ic('trash', 18) + '</button></div>' : row;
     }).join('') + '</div>' + (f.length > 300 ? '<p class="hint" style="margin-top:8px">แสดง 300 คนแรก ค้นหาเพื่อดูคนอื่น (การเลือกทั้งหมดและลบทั้งหมดรวมทุกคนตามตัวกรอง ' + f.length + ' คน)</p>' : '');
   }
   function deleteMany(ids, label) {
@@ -2666,6 +2754,7 @@
       if (isAdmin()) rows.push(['dev', 'user', 'ประวัติผู้พัฒนา', 'รูป ชื่อ ผลงาน ช่องทางติดต่อ แสดงที่หน้าแรก']);
       if (isAdmin()) rows.push(['logo', 'image', 'โลโก้โรงเรียน', 'อัปโหลดรูปโลโก้ใช้ทั้งระบบ']);
       rows.push(['report', 'printer', 'รูปแบบรายงาน', 'หัวรายงานและผู้ลงนาม']);
+      if (isAdmin()) rows.push(['defpw', 'lock', 'รหัสผ่านเริ่มต้น', 'กำหนดรหัสเริ่มต้นของนักเรียนและครูทุกคนให้เหมือนกัน']);
       if (isAdmin()) rows.push(['backup', 'calendar', 'สำรองข้อมูลอัตโนมัติ', 'สำรอง Google Sheet ทุกวันอาทิตย์ กู้คืนได้จาก Drive']);
       if (isAdmin()) rows.push(['reset', 'refresh', 'ล้างข้อมูลทดลอง', 'เริ่มใช้งานจริง สำรองข้อมูลให้อัตโนมัติก่อนล้าง']);
       rows.push(['settings', 'lock', 'ตั้งค่าระบบ', isAdmin() ? 'ปีการศึกษา เกณฑ์การแก้ การแจ้งเตือน' : 'ดูเกณฑ์ที่ใช้อยู่']);
@@ -3028,6 +3117,7 @@
         loadStudents();
         break;
       case 'new-pick-stu': s.sid = v; s.subj = null; renderSheet(); break;
+      case 'stu-cls': s.scls = v; $('scls').innerHTML = stuChips(); flipRender($('sres'), stuResults(s.sq)); var sr = $('sres'); if (sr) sr.scrollTop = 0; break;
       case 'new-clear-stu': s.sid = null; s.subj = null; renderSheet(); break;
       case 'new-subj': s.subj = v; renderSheet(); break;
       case 'new-type': s.type = v; if (!s.tasksEdited) s.tasks = TASKS[v].join('\n'); renderSheet(); break;
@@ -3041,6 +3131,13 @@
           openSheet({ kind: 'dev', data: null });
           API.call('getDevProfile').then(function (d) { if (S.sheet && S.sheet.kind === 'dev') { S.sheet.data = d; renderSheet(); } })
             .catch(function (err) { closeSheet(); toast(err.message || 'โหลดประวัติผู้พัฒนาไม่สำเร็จ'); });
+          break;
+        }
+        if (v === 'defpw') {
+          openSheet({ kind: 'defpw', data: null });
+          API.call('adminDefaultPw').then(function (d) {
+            if (S.sheet && S.sheet.kind === 'defpw') { S.sheet.data = d; S.sheet.form = { student: d.student, staff: d.staff, apply: 'unset', target: 'both' }; renderSheet(); }
+          }).catch(function (err) { closeSheet(); toast(err.message || 'โหลดไม่สำเร็จ'); });
           break;
         }
         if (v === 'backup') {
@@ -3075,6 +3172,23 @@
         API.call('saveDevProfile', dvp).then(function () {
           loaded(); closeSheet(); successBox('บันทึกประวัติผู้พัฒนาแล้ว', 'ผู้เข้าชมหน้าแรกจะเห็นข้อมูลใหม่ภายใน 5 นาที');
         }).catch(function (err) { loaded(); toast(err.message || 'บันทึกไม่สำเร็จ'); });
+        break;
+      case 'dp-eye': s.show = !s.show; renderSheet(); break;
+      case 'dp-apply': s.form.apply = v; renderSheet(); break;
+      case 'dp-target': s.form.target = v; renderSheet(); break;
+      case 'dp-save':
+        var fm = s.form, de = $('formErr');
+        var who = fm.target === 'students' ? 'นักเรียนทุกคน' : (fm.target === 'staff' ? 'ครูทุกคน' : 'นักเรียนและครูทุกคน');
+        var go2 = function () {
+          loading('กำลังบันทึกรหัสเริ่มต้น', fm.apply !== 'none' ? 'กำลังปรับบัญชีทั้งหมด' : '');
+          API.call('adminSetDefaultPw', fm).then(function (d) {
+            loaded(); haptic(); S.adm.students = null; S.adm.users = null;
+            s.data = d.info; renderSheet();
+            successBox('บันทึกรหัสเริ่มต้นแล้ว', fm.apply === 'none' ? 'ใช้กับบัญชีใหม่และการรีเซ็ตครั้งต่อไป' : 'ปรับแล้ว นักเรียน ' + d.students + ' คน ครู ' + d.staff + ' คน');
+          }).catch(function (err) { loaded(); if (de) de.textContent = err.message || 'บันทึกไม่สำเร็จ'; });
+        };
+        if (fm.apply === 'all') confirmBox({ title: 'รีเซ็ตรหัสผ่าน' + who + '?', text: 'ทุกคนต้องเข้าระบบด้วยรหัสเริ่มต้นแล้วตั้งรหัสใหม่ (ไม่รวมผู้ดูแลระบบ)', ok: 'รีเซ็ตทั้งหมด', danger: true }).then(function (ok) { if (ok) go2(); });
+        else go2();
         break;
       case 'bk-toggle':
         if (!s || !s.data) break;
@@ -3197,7 +3311,7 @@
         loading('กำลังนำเข้า ' + parsed.rows.length + ' คน', 'อาจใช้เวลาสักครู่');
         API.call('adminImportStudents', { rows: parsed.rows }).then(function (d) {
           loaded(); haptic(); S.adm.students = null; loadAdm('students', true); S.students = null;
-          openSheet({ kind: 'done', icon: 'check', title: 'นำเข้าแล้ว', sub: 'เพิ่มใหม่ ' + d.created + ' คน อัปเดต ' + d.updated + ' คน', next: d.created ? ['นักเรียนใหม่ใช้เลขประจำตัวเป็นรหัสผ่านครั้งแรก', 'ระบบจะให้ตั้งรหัสใหม่ตอนเข้าใช้ครั้งแรก'] : null });
+          openSheet({ kind: 'done', icon: 'check', title: 'นำเข้าแล้ว', sub: 'เพิ่มใหม่ ' + d.created + ' คน อัปเดต ' + d.updated + ' คน', next: d.created ? ['นักเรียนใหม่ใช้รหัสผ่านเริ่มต้นของโรงเรียน (ไม่ได้กำหนด = เลขประจำตัว)', 'ระบบจะให้ตั้งรหัสใหม่ตอนเข้าใช้ครั้งแรก'] : null });
         }).catch(function (err) { loaded(); setBusy(el, false); if (ie) ie.textContent = err.message || 'นำเข้าไม่สำเร็จ'; });
         break;
 
@@ -3400,10 +3514,11 @@
   document.addEventListener('input', function (e) {
     var t = e.target;
     if (t.getAttribute && t.getAttribute('data-dev') && S.sheet && S.sheet.kind === 'dev' && S.sheet.form) { S.sheet.form[t.getAttribute('data-dev')] = t.value; return; }
-    if (t.id === 'gsq') { S.gsq = t.value; var gr = $('gsres'); if (gr) gr.innerHTML = gsResults(t.value); return; }
-    if (t.id === 'q') { S.q = t.value; var sl = $('slist'); if (sl) sl.innerHTML = studentListHtml(); return; }
-    if (t.id === 'sq' && S.sheet) { S.sheet.sq = t.value; $('sres').innerHTML = stuResults(t.value); return; }
-    if (t.id === 'aq') { S.aq = t.value; var al = $('alist'); if (al) al.innerHTML = admStudentRows(); return; }
+    if (t.getAttribute && t.getAttribute('data-dp') && S.sheet && S.sheet.kind === 'defpw') { S.sheet.form[t.getAttribute('data-dp')] = t.value; return; }
+    if (t.id === 'gsq') { S.gsq = t.value; flipRender($('gsres'), gsResults(t.value)); return; }
+    if (t.id === 'q') { S.q = t.value; flipRender($('slist'), studentListHtml()); return; }
+    if (t.id === 'sq' && S.sheet) { S.sheet.sq = t.value; var srs = $('sres'); flipRender(srs, stuResults(t.value)); if (srs) srs.scrollTop = 0; return; }
+    if (t.id === 'aq') { S.aq = t.value; flipRender($('alist'), admStudentRows()); return; }
     if (t.id === 'importTxt' && S.sheet) { S.sheet.txt = t.value; impRefresh(); return; }
     if (t.id === 'impCls' && S.sheet) { S.sheet.defCls = t.value; impRefresh(); return; }
     if (t.id === 'themeColor' && window.Theme) { window.Theme.set(t.value); return; } // พรีวิวสด ไม่วาดใหม่ระหว่างลาก
