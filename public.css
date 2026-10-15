@@ -104,3 +104,4 @@
 @media (max-width:599px){.pub-hero{padding-top:64px}.rb-in{padding:16px 40px;font-size:19px}}
 .dv-card.shake{animation:dvShake .38s ease}
 @keyframes dvShake{0%,100%{transform:none}20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+.kpi .n{font-variant-numeric:tabular-nums}
