@@ -4,10 +4,10 @@
  * - ไม่แตะคำขอไปยัง Google Apps Script (ข้อมูลจริงยังมาจากเซิร์ฟเวอร์เสมอ)
  * อัปเดตไฟล์นี้เมื่อไร ให้เปลี่ยนเลข VERSION
  */
-var VERSION = 'v4';
+var VERSION = 'v5';
 var SHELL = 'followup-shell-' + VERSION;
 var CDN = 'followup-cdn-' + VERSION;
-var CORE = ['/', '/app', '/app.css', '/app.js', '/theme.js', '/counter.js', '/tw.css', '/config.js', '/api.js', '/public.css', '/public.js', '/icon.svg', '/manifest.webmanifest'];
+var CORE = ['/', '/app', '/app.css', '/app.js', '/theme.js', '/tw.css', '/config.js', '/api.js', '/public.css', '/public.js', '/icon.svg', '/manifest.webmanifest'];
 var CDN_HOSTS = ['cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', function (e) {
