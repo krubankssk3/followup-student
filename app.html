@@ -16,26 +16,48 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 <script src="theme.js"></script>
+<link rel="stylesheet" href="tw.css">
 <style>
-  #splash{position:fixed;inset:0;z-index:3000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--grad,linear-gradient(135deg,#5B5BD6,#8A4FBF));color:#fff;font-family:"IBM Plex Sans Thai",Tahoma,sans-serif;transition:opacity .4s}
-  #splash.out{opacity:0;pointer-events:none}
-  #splash .sp-logo{position:relative;width:120px;height:120px}
-  #splash .sp-logo img,#splash .sp-logo .sp-ph{position:absolute;inset:16px;width:88px;height:88px;border-radius:50%;background:#fff;object-fit:contain;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
-  #splash .sp-ring{position:absolute;inset:0;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:#fff;animation:spsp .9s linear infinite}
-  #splash b{font-size:18px;font-weight:600}
-  #splash small{opacity:.8}
-  #splash .sp-bar{width:180px;height:6px;border-radius:3px;background:rgba(255,255,255,.22);overflow:hidden;margin-top:6px}
-  #splash .sp-bar i{display:block;height:100%;width:0;border-radius:3px;background:#fff;animation:spbar 3.5s ease-out forwards}
-  #splash .sp-msg{font-size:13px;opacity:.85;min-height:20px}
-  @keyframes spbar{to{width:100%}}
-  @keyframes spsp{to{transform:rotate(360deg)}}
+  /* โครงหลักของหน้าโหลด (ทำงานได้แม้ tw.css ยังไม่โหลด) */
+  #splash{position:fixed;inset:0;z-index:3000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--grad,linear-gradient(135deg,#5B5BD6,#8A4FBF));color:#fff;font-family:"IBM Plex Sans Thai",Tahoma,sans-serif;transition:opacity .45s,transform .45s;overflow:hidden}
+  #splash.out{opacity:0;transform:scale(1.04);pointer-events:none}
+  #spImg{width:88px;height:88px;border-radius:50%;background:#fff;object-fit:contain;padding:8px}
+  .sp-conic{background:conic-gradient(from 0deg,#fff0,#fff 25%,#ffe08a 45%,#8af0ff 65%,#fff0 80%);-webkit-mask:radial-gradient(farthest-side,#0000 calc(100% - 5px),#000 calc(100% - 4px));mask:radial-gradient(farthest-side,#0000 calc(100% - 5px),#000 calc(100% - 4px))}
+  .sp-grid{background-image:linear-gradient(rgba(255,255,255,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.07) 1px,transparent 1px);background-size:34px 34px;-webkit-mask-image:radial-gradient(ellipse at center,#000 30%,transparent 75%);mask-image:radial-gradient(ellipse at center,#000 30%,transparent 75%)}
 </style>
 </head>
 <body>
-<div id="splash">
-  <div class="sp-logo"><div class="sp-ring"></div><img id="spImg" src="icon.svg" alt=""></div>
-  <b>ติดตามการแก้ 0 ร มส</b><small>โรงเรียนบ้านละลม</small>
-  <div class="sp-bar"><i></i></div><div class="sp-msg" id="spMsg">กำลังเตรียมระบบ</div>
+<div id="splash" class="tw-select-none">
+  <div class="sp-grid tw-absolute tw-inset-0 tw-pointer-events-none"></div>
+  <div class="tw-absolute tw--top-24 tw--left-24 tw-h-80 tw-w-80 tw-rounded-full tw-bg-fuchsia-400/40 tw-blur-3xl tw-animate-blob tw-pointer-events-none"></div>
+  <div class="tw-absolute tw-top-1/3 tw--right-28 tw-h-96 tw-w-96 tw-rounded-full tw-bg-cyan-300/30 tw-blur-3xl tw-animate-blob tw-pointer-events-none" style="animation-delay:-4s"></div>
+  <div class="tw-absolute tw--bottom-32 tw-left-1/4 tw-h-80 tw-w-80 tw-rounded-full tw-bg-amber-300/25 tw-blur-3xl tw-animate-blob tw-pointer-events-none" style="animation-delay:-8s"></div>
+
+  <div class="tw-relative tw-flex tw-w-[min(88vw,340px)] tw-flex-col tw-items-center tw-gap-3 tw-rounded-[32px] tw-border tw-border-white/25 tw-bg-white/10 tw-px-8 tw-pb-7 tw-pt-8 tw-shadow-[0_30px_80px_rgba(0,0,0,.28)] tw-backdrop-blur-xl tw-animate-rise">
+    <div class="tw-relative tw-grid tw-h-32 tw-w-32 tw-place-items-center tw-animate-floaty">
+      <div class="tw-absolute tw-inset-0 tw-rounded-full tw-bg-white/20 tw-blur-xl tw-animate-glow"></div>
+      <div class="sp-conic tw-absolute tw-inset-0 tw-rounded-full tw-animate-spin-slow"></div>
+      <div class="tw-absolute tw-inset-[10px] tw-rounded-full tw-border tw-border-white/30"></div>
+      <img id="spImg" src="icon.svg" alt="" class="tw-relative tw-shadow-[0_12px_30px_rgba(0,0,0,.25)]">
+    </div>
+    <div class="tw-text-center">
+      <b class="tw-block tw-text-[19px] tw-font-bold tw-tracking-wide">ติดตามการแก้ 0 ร มส</b>
+      <small class="tw-block tw-text-[13.5px] tw-opacity-80">โรงเรียนบ้านละลม</small>
+    </div>
+    <div class="tw-mt-2 tw-w-full">
+      <div class="tw-relative tw-h-2 tw-w-full tw-overflow-hidden tw-rounded-full tw-bg-white/20">
+        <div id="spFill" class="tw-relative tw-h-full tw-w-0 tw-overflow-hidden tw-rounded-full tw-bg-gradient-to-r tw-from-white tw-via-amber-100 tw-to-cyan-100 tw-transition-[width] tw-duration-200 tw-ease-out">
+          <span class="tw-absolute tw-inset-0 tw--translate-x-full tw-animate-shimmer tw-bg-gradient-to-r tw-from-transparent tw-via-white/80 tw-to-transparent"></span>
+        </div>
+      </div>
+      <div class="tw-mt-2 tw-flex tw-items-center tw-justify-between tw-text-[12.5px]">
+        <span id="spMsg" class="tw-opacity-90">กำลังเตรียมระบบ</span>
+        <span class="tw-flex tw-items-center tw-gap-2"><span class="tw-flex tw-gap-1"><i class="tw-h-1.5 tw-w-1.5 tw-rounded-full tw-bg-white tw-animate-bounce"></i><i class="tw-h-1.5 tw-w-1.5 tw-rounded-full tw-bg-white tw-animate-bounce" style="animation-delay:.15s"></i><i class="tw-h-1.5 tw-w-1.5 tw-rounded-full tw-bg-white tw-animate-bounce" style="animation-delay:.3s"></i></span><b id="spPct" class="tw-tabular-nums">0%</b></span>
+      </div>
+    </div>
+    <div id="spTip" class="tw-mt-1 tw-min-h-[38px] tw-rounded-2xl tw-bg-white/10 tw-px-3 tw-py-2 tw-text-center tw-text-[12px] tw-leading-relaxed tw-opacity-90 tw-transition-opacity tw-duration-300"></div>
+  </div>
+  <p class="tw-absolute tw-bottom-5 tw-left-0 tw-right-0 tw-m-0 tw-px-4 tw-text-center tw-text-[11.5px] tw-opacity-70">พัฒนาโดย นายชิติพัทธ์ นิลวรรณ ครู โรงเรียนบ้านละลม สพป.ศรีสะเกษ เขต 3</p>
 </div>
 <script>
   try { var lg = JSON.parse(localStorage.getItem('followup_logo') || 'null'); if (lg && lg.data) document.getElementById('spImg').src = lg.data; } catch (e) {}
@@ -45,6 +67,19 @@
   spSteps.forEach(function (t, i) {
     setTimeout(function () { var m = document.getElementById('spMsg'); if (m) m.textContent = t; }, i * (SPLASH_MS / spSteps.length));
   });
+  // แถบความคืบหน้าเป็นเปอร์เซ็นต์ + เกร็ดความรู้สลับข้อความ
+  (function () {
+    var tips = ['0 คือ ไม่ผ่านเกณฑ์ ต้องสอบแก้ตัวตามที่ครูนัด', 'ร คือ ค้างงานหรือขาดสอบ ส่งงานให้ครบแล้วแจ้งครู', 'มส คือ เวลาเรียนไม่ถึง 80% ต้องเรียนเพิ่มให้ครบ', 'ผู้ปกครองรับแจ้งเตือนผ่าน LINE ได้ ที่เมนู ฉัน', 'กด Ctrl + K เพื่อค้นหานักเรียนได้ทันที'];
+    var tip = document.getElementById('spTip'), k = Math.floor(Math.random() * tips.length);
+    function showTip() { if (!tip) return; tip.style.opacity = 0; setTimeout(function () { tip.textContent = '💡 ' + tips[k++ % tips.length]; tip.style.opacity = 0.9; }, 250); }
+    showTip(); var tt = setInterval(showTip, 1800);
+    var fill = document.getElementById('spFill'), pct = document.getElementById('spPct');
+    var t = setInterval(function () {
+      var p = Math.min(100, Math.round((Date.now() - SPLASH_T0) * 100 / SPLASH_MS));
+      if (fill) fill.style.width = p + '%'; if (pct) pct.textContent = p + '%';
+      if (p >= 100 || !document.getElementById('splash')) { clearInterval(t); clearInterval(tt); }
+    }, 60);
+  })();
   function hideSplash() {
     var wait = SPLASH_MS - (Date.now() - SPLASH_T0);
     if (wait > 0) { setTimeout(hideSplash, wait); return; }
@@ -62,7 +97,7 @@
   setTimeout(function () {
     var sp = document.getElementById('splash'), app = document.getElementById('app');
     if (!sp || (app && app.children.length)) return;
-    sp.innerHTML = '<b>โหลดระบบไม่สำเร็จ</b><small>ตรวจว่าไฟล์ app.js อยู่ใน GitHub แล้วกด Ctrl+Shift+R</small>';
+    sp.innerHTML = '<div style="text-align:center;padding:24px"><div style="font-size:44px">⚠️</div><b style="display:block;font-size:19px;margin:8px 0">โหลดระบบไม่สำเร็จ</b><small style="opacity:.85">ตรวจว่าไฟล์ app.js อยู่ใน GitHub แล้วกด Ctrl+Shift+R</small></div>';
   }, 8000);
 </script>
 <div id="app" class="app"></div>
