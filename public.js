@@ -235,14 +235,20 @@
     }));
   }
 
+  var PUB_KEY = 'followup_pub';
   function load() {
     API.call('publicStats').then(function (d) {
       if (window.Theme && d.themeColor !== undefined) window.Theme.setSchool(d.themeColor, true);
       DATA = d; render(); syncLogo(d.logoVer);
+      try { localStorage.setItem(PUB_KEY, JSON.stringify(d)); } catch (e) {}
     }).catch(function (e) {
+      if (DATA) return; // มีข้อมูลเดิมแสดงอยู่แล้ว
       $('pub').innerHTML = hero(null) + '<div class="pub-empty">' + esc(e.message || 'โหลดข้อมูลไม่สำเร็จ') + '</div>';
     });
   }
+  // แสดงสถิติที่เคยโหลดไว้ทันที แล้วค่อยอัปเดตเป็นข้อมูลล่าสุด
+  try { var pc = JSON.parse(localStorage.getItem(PUB_KEY) || 'null'); if (pc && pc.status) DATA = pc; } catch (e) {}
+  window.__chartReady = function () { if (DATA) render(); };
 
   document.addEventListener('click', function (e) {
     if (!e.target.closest) return;
