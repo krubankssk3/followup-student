@@ -3165,24 +3165,34 @@
   }
 
   /* ---------- server ---------- */
+  /** ใส่ข้อมูลหน้าแรกที่ได้จากเซิร์ฟเวอร์ */
+  function applyHome(d) {
+    S.syncing = false; S.loadErr = null; S.loaded = true; S.lastSync = now();
+    if (d.user) { S.user = d.user; API.setSession(null, d.user); }
+    S.settings = d.settings || S.settings;
+    S.cases = d.cases || []; S.notifs = d.notifs || []; S.subjects = d.subjects || [];
+    if (S.bootOverlay) { S.bootOverlay = false; loaded(); }
+    saveCache(); render();
+    syncLogo(S.settings && S.settings.logoVer);
+    if (window.Theme && S.settings) window.Theme.setSchool(S.settings.themeColor, S.settings.themeFx === undefined || S.settings.themeFx === '' ? true : (S.settings.themeFx === true || String(S.settings.themeFx).toUpperCase() === 'TRUE'));
+    checkCelebrate();
+    if (S.settings && S.settings.sigVer && String(S.settings.sigVer) !== String(S.sigVer || '')) loadSigs();
+    var top = S.stack[S.stack.length - 1];
+    if (top && top.v === 'case') loadLog(top.id);
+  }
+  /** ใช้คำขอที่ app.html ยิงไว้ล่วงหน้าตอนเปิดเว็บ (ครั้งเดียว ภายใน 20 วินาที) */
+  function takePrefetch() {
+    var p = window.__homeP, at = window.__homeAt || 0;
+    window.__homeP = null;
+    if (!p || now() - at > 20000) return null;
+    return p.then(function (res) { return res && res.ok ? res.data : API.call('getHome'); }, function () { return API.call('getHome'); });
+  }
   function refresh(silent) {
     if (!S.user || S.syncing) return;
     S.syncing = true;
     if (!silent) render();
-    API.call('getHome').then(function (d) {
-      S.syncing = false; S.loadErr = null; S.loaded = true; S.lastSync = now();
-      if (d.user) { S.user = d.user; API.setSession(null, d.user); }
-      S.settings = d.settings || S.settings;
-      S.cases = d.cases || []; S.notifs = d.notifs || []; S.subjects = d.subjects || [];
-      if (S.bootOverlay) { S.bootOverlay = false; loaded(); }
-      saveCache(); render();
-      syncLogo(S.settings && S.settings.logoVer);
-      if (window.Theme && S.settings) window.Theme.setSchool(S.settings.themeColor, S.settings.themeFx === undefined || S.settings.themeFx === '' ? true : (S.settings.themeFx === true || String(S.settings.themeFx).toUpperCase() === 'TRUE'));
-      checkCelebrate();
-      if (S.settings && S.settings.sigVer && String(S.settings.sigVer) !== String(S.sigVer || '')) loadSigs();
-      var top = S.stack[S.stack.length - 1];
-      if (top && top.v === 'case') loadLog(top.id);
-    }).catch(function (e) {
+    var job = (silent && takePrefetch()) || API.call('getHome', silent ? {} : { fresh: true });
+    job.then(applyHome).catch(function (e) {
       S.syncing = false;
       if (S.bootOverlay) { S.bootOverlay = false; loaded(); }
       if (e.error === 'AUTH_EXPIRED' || e.error === 'MUST_CHANGE_PW') return;
@@ -3298,7 +3308,9 @@
     S.user = d.user; S.settings = d.settings || null;
     API.setSession(d.token, d.user);
     S.tab = 'home'; S.loaded = false; S.cases = []; S.notifs = []; S.subjects = []; S.logs = {}; S.ev = {}; S.students = null;
-    loadCache(); render();
+    loadCache();
+    if (d.home) { applyHome(d.home); toast('ยินดีต้อนรับ ' + (d.user.firstName || '')); return; } // ข้อมูลมากับการเข้าสู่ระบบแล้ว
+    render();
     if (!S.user.mustChangePw) refresh(true);
   }
   function doLogin(form) {
@@ -3306,10 +3318,11 @@
     err.textContent = '';
     if (!u || !p) { err.textContent = 'กรอกชื่อผู้ใช้และรหัสผ่านให้ครบ'; return; }
     setBusy(btn, true, 'กำลังเข้าสู่ระบบ');
+    var lgReq = API.call('login', { username: u, password: p }); // ส่งคำขอก่อน แล้วค่อยเปิดหน้าโหลด
     loading('กำลังเข้าสู่ระบบ');
-    API.call('login', { username: u, password: p }).then(function (d) {
+    lgReq.then(function (d) {
       haptic();
-      if (!d.user.mustChangePw) { S.bootOverlay = true; loading('กำลังโหลดข้อมูล', 'ยินดีต้อนรับ ' + (d.user.firstName || '')); } else loaded();
+      if (!d.user.mustChangePw && !d.home) { S.bootOverlay = true; loading('กำลังโหลดข้อมูล', 'ยินดีต้อนรับ ' + (d.user.firstName || '')); } else loaded();
       afterLogin(d);
     }).catch(function (e) {
       loaded();
